@@ -1,4 +1,4 @@
-# Skills de Ações da B3
+# Skills de Análise de Ações da B3
 
 Um conjunto de *skills* que emula o trabalho de um analista de ações: identifica o tipo de empresa, aplica o método de valuation certo e entrega **preço justo**, **preço-teto com margem de segurança**, **DY esperado**, **viés** e um relatório em formato fixo.
 
