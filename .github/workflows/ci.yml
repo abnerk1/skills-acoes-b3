@@ -1,0 +1,19 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Scripts idênticos aos blocos dos SKILL.md
+        run: python3 tools/sync_scripts.py
+      - name: Os scripts compilam
+        run: python3 -m compileall -q skills tools
