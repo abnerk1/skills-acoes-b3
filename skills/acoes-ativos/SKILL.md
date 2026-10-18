@@ -50,7 +50,7 @@ Avisos: (lista do script, se houver)
 ```
 
 ## Regras gerais
-- Isolamento: nunca consultar nem citar tese, preço-teto ou premissa de casas de análise (Suno etc.). Só dados primários (CVM, RI) e cotação. Preço justo de investida vem das nossas microskills, nunca de terceiros.
+- Isolamento: nunca consultar nem citar tese, preço-teto ou premissa de casas de análise (research independente, bancos, corretoras). Só dados primários (CVM, RI) e cotação. Preço justo de investida vem das nossas microskills, nunca de terceiros.
 - Premissas neutras: sem desconto de holding além das despesas capitalizadas; sem folga além dos 20%.
 - Não ajustar a regra caso a caso; divergências viram aviso, não exceção.
 
