@@ -1,36 +1,36 @@
-# Como contribuir
+# Contributing
 
-Obrigado por querer melhorar o método. Algumas regras mantêm o projeto coerente.
+Thanks for wanting to improve the method. A few rules keep the project consistent.
 
-## O que é sagrado
+## Non-negotiables
 
-1. **O `SKILL.md` é a fonte da verdade.** O script `.py` de cada skill é cópia do bloco `## Script` do `SKILL.md`. Edite o `SKILL.md` e depois rode:
+1. **`SKILL.md` is the source of truth.** Each skill's `.py` script is a copy of the `## Script` block in its `SKILL.md`. Edit the `SKILL.md`, then run:
    ```bash
    python3 tools/sync_scripts.py --write
    ```
-   O CI reprova o PR se os dois divergirem.
-2. **Isolamento de fontes.** Só dados primários (CVM, IBGE, RI da empresa, FundosNet e relatório gerencial do FII) e cotação. Não envie PR que use tese, preço-alvo ou premissa de casa de análise, nem dado de assinatura paga.
-3. **Premissas neutras.** O método não projeta o que a empresa promete. Mudança que adicione projeção precisa justificar o porquê.
-4. **Dado faltante vira aviso**, nunca erro que bloqueia a entrega.
+   CI fails the pull request if the two diverge.
+2. **Source isolation.** Only primary data (CVM, IBGE, company investor relations, FundosNet and the FII manager's report) and the share price. Do not open a pull request that relies on a third-party thesis, price target or assumption, or on paywalled data.
+3. **Neutral assumptions.** The method does not project what the company promises. A change that adds a projection has to justify why.
+4. **Missing data becomes a warning**, never an error that blocks the report.
 
-## Como propor uma mudança na regra
+## Proposing a rule change
 
-A regra de cada microskill é fixa para que os resultados sejam comparáveis entre empresas. Por isso, mudança de método entra como **nova versão**, não como ajuste silencioso:
+Each micro-skill's rule is fixed so results stay comparable across companies. That is why a method change ships as a **new version**, not a quiet tweak:
 
-- Abra uma issue descrevendo o problema, com 2 ou 3 tickers em que a regra atual erra e o que você esperava.
-- No PR, atualize a versão no título do `SKILL.md` (ex.: v1.1 → v1.2) e explique o efeito nos números com antes e depois.
-- Não ajuste a regra para um caso isolado. Se um caso foge do método, o certo é um aviso.
+- Open an issue describing the problem, with two or three tickers where the current rule gets it wrong and the result you expected.
+- In the pull request, bump the version in the `SKILL.md` title (for example, v1.1 → v1.2) and show the before/after numbers.
+- Do not bend a rule for a single case. If a case falls outside the method, the right answer is a warning.
 
-## Outras contribuições bem-vindas
+## Other welcome contributions
 
-- **Casos de teste**: ticker, data da cotação, comando rodado e saída esperada.
-- **Correções de leitura da CVM** (contas que mudam de nome, empresas sem consolidado, ações informadas em milhares).
-- **Novas microskills** (seguradoras, saneamento) e **novos FIIs na tabela fixa** da `analise-de-fiis` (ticker, CNPJ e motor). Siga o formato das existentes: quando usar, regra fixa, passos, saída em formato fixo, script.
-- Melhorias no relatório da `analise-de-acoes-b3`, mantendo o formato fixo.
+- **Test cases**: ticker, price date, the command you ran and the expected output.
+- **Fixes to CVM parsing** (accounts that get renamed, companies without consolidated statements, share counts reported in thousands).
+- **New micro-skills** (insurers, sanitation) and **new FIIs in the fixed table** of `analise-de-fiis` (ticker, CNPJ and engine). Follow the format of the existing ones: when to use, fixed rule, steps, fixed-format output, script.
+- Improvements to the `analise-de-acoes-b3` report that keep the fixed format.
 
-## Checklist do PR
+## Pull request checklist
 
-- [ ] `python3 tools/sync_scripts.py` passa
-- [ ] O script roda de ponta a ponta em pelo menos um ticker real (informe qual e a data)
-- [ ] Nenhuma fonte fora de CVM, IBGE, RI, FundosNet e cotação
-- [ ] Nenhum dado pessoal, chave de API ou credencial no diff
+- [ ] `python3 tools/sync_scripts.py` passes
+- [ ] The script runs end to end on at least one real ticker (say which one and the date)
+- [ ] No source other than CVM, IBGE, investor relations, FundosNet and the share price
+- [ ] No personal data, API keys or credentials in the diff
