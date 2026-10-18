@@ -17,7 +17,7 @@ Esta skill não calcula valor. Ela identifica a ação, escolhe a microskill, en
 
 ## Regras comuns (valem para tudo)
 - Ke 10% real; margem de segurança fixa de 20% (preço-teto = preço justo × 0,8); premissas neutras; dado faltante vira aviso e nunca bloqueia a entrega.
-- Isolamento: nunca consultar nem citar tese, preço-alvo, preço-teto ou premissa de casas de análise (Suno, bancos, research). Só CVM, IBGE, RI da empresa e cotação.
+- Isolamento: nunca consultar nem citar tese, preço-alvo, preço-teto ou premissa de casas de análise (research independente, bancos, corretoras). Só CVM, IBGE, RI da empresa e cotação.
 - Fora do escopo: alocação de carteira, renda fixa, rentabilidade passada, preço de entrada e recomendação personalizada.
 
 ## Passos
@@ -117,7 +117,7 @@ LIQ_FILTRO = 0.2e6      # abaixo de R$ 200 mil = filtro: viés fica "Aguardar (l
 FCA = 'https://dados.cvm.gov.br/dados/CIA_ABERTA/DOC/FCA/DADOS/fca_cia_aberta_{ano}.zip'
 CAD = 'https://dados.cvm.gov.br/dados/CIA_ABERTA/CAD/DADOS/cad_cia_aberta.csv'
 
-# Tabela fixa (desenho do projeto, a partir das 39 teses). Ticker fora dela -> regra.
+# Tabela fixa (desenho do projeto). Ticker fora dela -> regra.
 TABELA = {
     'Financeiras': 'BBAS3 BBAS3 SANB11 SANB3 SANB4 ITUB3 ITUB4 BBDC3 BBDC4 ABCB4 BRBI11 BPAC11 BRSR6',
     'Fluxo normalizado': 'VALE3 PETR3 PETR4 PRIO3 RECV3 KLBN3 KLBN4 KLBN11 SUZB3 UNIP3 UNIP6 SLCE3 FESA4 RANI3 TUPY3 '

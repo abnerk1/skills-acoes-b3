@@ -20,7 +20,7 @@ A skill identifica o FII, roda o script, aplica o filtro de liquidez e escreve o
 - **DY esperado:** rendimento corrente ÷ cotação.
 - **Viés:** "Comprar" se cotação ≤ preço-teto; senão, "Aguardar".
 - **Dado faltante:** vira aviso e nunca bloqueia a entrega.
-- **Isolamento:** nunca consultar nem citar tese, preço-teto, ranking ou premissa de casas de análise (Suno, bancos, research). Fontes permitidas: CVM, FundosNet (documentos do próprio fundo), relatório gerencial do fundo e cotação.
+- **Isolamento:** nunca consultar nem citar tese, preço-teto, ranking ou premissa de casas de análise (research independente, bancos, corretoras). Fontes permitidas: CVM, FundosNet (documentos do próprio fundo), relatório gerencial do fundo e cotação.
 - **Fora do escopo:** alocação de carteira, ranking entre fundos, rentabilidade passada, preço de entrada e recomendação personalizada.
 
 ## Passos

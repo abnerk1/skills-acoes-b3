@@ -56,7 +56,7 @@ Avisos: (lista do script, se houver)
 Incluir a tabela anual de ROE impressa pelo script quando o usuário pedir detalhe.
 
 ## Regras gerais
-- Isolamento: nunca consultar nem citar tese ou preço-teto de casas de análise (Suno etc.). Só dados primários (CVM, RI, IBGE) e cotação.
+- Isolamento: nunca consultar nem citar tese ou preço-teto de casas de análise (research independente, bancos, corretoras). Só dados primários (CVM, RI, IBGE) e cotação.
 - Premissas neutras: não acrescentar folga além dos 20%.
 - Não ajustar a regra caso a caso; divergências viram aviso, não exceção.
 

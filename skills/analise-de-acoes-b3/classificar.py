@@ -14,7 +14,7 @@ LIQ_FILTRO = 0.2e6      # abaixo de R$ 200 mil = filtro: viés fica "Aguardar (l
 FCA = 'https://dados.cvm.gov.br/dados/CIA_ABERTA/DOC/FCA/DADOS/fca_cia_aberta_{ano}.zip'
 CAD = 'https://dados.cvm.gov.br/dados/CIA_ABERTA/CAD/DADOS/cad_cia_aberta.csv'
 
-# Tabela fixa (desenho do projeto, a partir das 39 teses). Ticker fora dela -> regra.
+# Tabela fixa (desenho do projeto). Ticker fora dela -> regra.
 TABELA = {
     'Financeiras': 'BBAS3 BBAS3 SANB11 SANB3 SANB4 ITUB3 ITUB4 BBDC3 BBDC4 ABCB4 BRBI11 BPAC11 BRSR6',
     'Fluxo normalizado': 'VALE3 PETR3 PETR4 PRIO3 RECV3 KLBN3 KLBN4 KLBN11 SUZB3 UNIP3 UNIP6 SLCE3 FESA4 RANI3 TUPY3 '
