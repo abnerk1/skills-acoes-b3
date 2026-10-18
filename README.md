@@ -1,95 +1,102 @@
-# Skills de Análise de Ações e FIIs da B3
+# Brazilian Stock and REIT Valuation Skills (B3)
 
-Um conjunto de *skills* que emula o trabalho de um analista: identifica o tipo de ativo, aplica o método de valuation certo e entrega **preço-teto com margem de segurança**, **DY esperado**, **viés** e um relatório em formato fixo. Nas ações, também o **preço justo**.
+A set of AI *skills* that does an equity analyst's job: it identifies the type of asset, applies the right valuation method and delivers a **price ceiling with a margin of safety**, an **expected dividend yield**, a **Buy/Hold call** and a fixed-format report. For stocks, it also delivers a **fair price**.
 
-Tudo é regra quantitativa fixa, calculada a partir de dados públicos (CVM, FundosNet e IBGE). Sem achismo e sem copiar tese de casa de análise.
+Everything is a fixed quantitative rule computed from public data (CVM, FundosNet and IBGE). No guesswork, and no copying of third-party research.
 
-> Santos Dumont publicou os planos do Demoiselle para que qualquer um pudesse construir e melhorar o avião. Este repositório segue o mesmo espírito: o método está aberto para ser usado, questionado e aprimorado.
+> Santos Dumont published the plans for his Demoiselle airplane so anyone could build and improve it. This repository follows the same spirit: the method is open to be used, challenged and improved.
 
-## O que tem aqui
+## What's inside
 
-### Ações
+The skills, reports and command-line flags are in Portuguese because they analyze Brazilian assets with Brazilian data sources. This README and the contributing guide are in English.
 
-| Skill | Para quem | Método | Versão |
+### Stocks
+
+| Skill | Covers | Method | Version |
 |---|---|---|---|
-| [`analise-de-acoes-b3`](skills/analise-de-acoes-b3/SKILL.md) | Ponto de entrada (maestrina) | Classifica o ticker, escolhe a microskill, aplica filtro de liquidez e escreve o relatório | v1 |
-| [`acoes-financeiras`](skills/acoes-financeiras/SKILL.md) | Bancos | P/VP = (ROE real − g) ÷ (10% − g) | v1.1 |
-| [`acoes-fluxo-normalizado`](skills/acoes-fluxo-normalizado/SKILL.md) | Commodities, indústria, elétricas, petróleo, seguros, telecom | ROE real normalizado (10 anos) × PL, com crescimento e horizonte opcional | v1.1 |
-| [`acoes-crescimento`](skills/acoes-crescimento/SKILL.md) | Empresas que reinvestem o lucro (varejo, agro, locação, bolsa) | P/L justo em dois estágios com ROIIC | v1 |
-| [`acoes-ativos`](skills/acoes-ativos/SKILL.md) | Holdings, incorporadoras, terras, venture capital | NAV / soma das partes | v1 |
+| [`analise-de-acoes-b3`](skills/analise-de-acoes-b3/SKILL.md) | Entry point (orchestrator) | Classifies the ticker, picks the micro-skill, applies the liquidity filter and writes the report | v1 |
+| [`acoes-financeiras`](skills/acoes-financeiras/SKILL.md) | Banks | P/B = (real ROE − g) ÷ (10% − g) | v1.1 |
+| [`acoes-fluxo-normalizado`](skills/acoes-fluxo-normalizado/SKILL.md) | Commodities, industrials, utilities, oil, insurance, telecom | Normalized 10-year real ROE × book value, with growth and an optional finite horizon | v1.1 |
+| [`acoes-crescimento`](skills/acoes-crescimento/SKILL.md) | Companies that reinvest their earnings (retail, agribusiness, leasing, exchanges) | Two-stage fair P/E based on ROIIC | v1 |
+| [`acoes-ativos`](skills/acoes-ativos/SKILL.md) | Holding companies, homebuilders, farmland, venture capital | NAV / sum of the parts | v1 |
 
-A maestrina não calcula nada: toda conta vem do script de uma microskill.
+The orchestrator computes nothing itself: every number comes from a micro-skill's script.
 
-### Fundos imobiliários
+### Real estate investment funds (FIIs, Brazil's REITs)
 
-| Skill | Para quem | Método | Versão |
+| Skill | Covers | Method | Version |
 |---|---|---|---|
-| [`analise-de-fiis`](skills/analise-de-fiis/SKILL.md) | Qualquer FII listado na B3 | Uma skill com quatro motores; resultado só em preço-teto, sem preço justo | v1 |
+| [`analise-de-fiis`](skills/analise-de-fiis/SKILL.md) | Any FII listed on B3 | One skill with four engines; the output is a price ceiling only, with no fair price | v1 |
 
-| Motor | Para quem | Preço-teto |
+| Engine | Covers | Price ceiling |
 |---|---|---|
-| Tijolo | lajes, logística, shoppings, renda urbana, híbridos, hotéis | rendimento corrente ÷ 8,75% (÷ 10% em lajes corporativas e hotéis) |
-| Papel | FIIs de CRI | VP × 1,05 / 1,00 / 0,95, conforme o problema de crédito do relatório gerencial (≤ 5%, 5–10%, > 10% do PL) |
-| Fundo de fundos | FIIs que investem em cotas de outros FIIs | VP × 1,00 |
-| Transição | tijolo com alavancagem > 30% do ativo ou rendimento < 6% do VP; desenvolvimento | VP × 0,80 |
+| Brick-and-mortar | offices, logistics, shopping malls, urban retail, hybrids, hotels | current distribution ÷ 8.75% (÷ 10% for corporate offices and hotels) |
+| Paper | FIIs that hold real estate receivables (CRIs) | book value × 1.05 / 1.00 / 0.95, based on the credit problems in the manager's report (≤ 5%, 5–10%, > 10% of NAV) |
+| Fund of funds | FIIs that hold units of other FIIs | book value × 1.00 |
+| Transition | brick-and-mortar funds with leverage > 30% of assets or a distribution < 6% of book value; development funds | book value × 0.80 |
 
-O rendimento corrente é a média dos três últimos avisos de rendimento × 12. Na régua de calibração (21 FIIs, cotações de 14/10/2026), o viés de compra coincidiu com o de uma carteira profissional de referência em 21 de 21 casos.
+The current distribution is the average of the last three distribution notices × 12. On the calibration set (21 FIIs, prices as of 10/14/2026), the Buy call matched a professional reference portfolio in 21 of 21 cases.
 
-## Regras comuns (ações)
+## Common rules (stocks)
 
-- Custo de capital (Ke) de **10% real**.
-- **Margem de segurança fixa de 20%**: preço-teto = preço justo × 0,8.
-- Premissas neutras. Nada de projetar lojas, capacidade ou *guidance*.
-- Dado faltante vira aviso e nunca bloqueia a entrega.
-- **Isolamento de fontes**: só CVM, IBGE, RI da empresa e cotação. Teses, preços-alvo e premissas de casas de análise ficam de fora.
-- A regra é fixa. Divergências viram aviso, não exceção caso a caso.
+- Cost of equity of **10% real**.
+- **Fixed 20% margin of safety**: price ceiling = fair price × 0.8.
+- Neutral assumptions. No projections of new stores, capacity or company guidance.
+- Missing data becomes a warning and never blocks the report.
+- **Source isolation**: only CVM, IBGE, company investor relations and the share price. Third-party theses, price targets and assumptions stay out.
+- The rule is fixed. Exceptions become warnings, never case-by-case adjustments.
 
-## Regras comuns (FIIs)
+## Common rules (FIIs)
 
-- Sem preço justo: a margem de segurança está embutida no preço-teto de cada motor.
-- Viés "Comprar" se cotação ≤ preço-teto; abaixo de R$ 200 mil/dia de liquidez, "Aguardar (liquidez)".
-- **Isolamento de fontes**: só CVM, FundosNet (documentos do próprio fundo), relatório gerencial do fundo e cotação.
-- No papel, o único dado lido à mão é o problema de crédito do relatório gerencial (% do PL), com a página anotada.
+- No fair price: the margin of safety is built into each engine's price ceiling.
+- "Buy" when the price is at or below the ceiling; below R$ 200 thousand of daily liquidity, the call becomes "Hold (liquidity)".
+- **Source isolation**: only CVM, FundosNet (the fund's own filings), the fund manager's report and the share price.
+- For paper funds, the only figure read by hand is the credit problem from the manager's report (% of NAV), with the page number recorded.
 
-## Como usar
+## How to use
 
-**Como skills.** Cada pasta em `skills/` é uma skill no formato `SKILL.md`. Carregue-as no seu cliente de IA compatível; comece pela `analise-de-acoes-b3`.
+**As skills.** Each folder in `skills/` is a skill in the `SKILL.md` format. Load them into a compatible AI client and start with `analise-de-acoes-b3`.
 
-**Direto no terminal.** Cada skill traz o script `.py` ao lado do `SKILL.md`. Só usam a biblioteca padrão do Python 3, sem dependências. Os de ações baixam as DFPs e ITRs da [CVM](https://dados.cvm.gov.br) e o IPCA do [IBGE](https://servicodados.ibge.gov.br), com cache em `~/.cache/cvm`. O de FIIs baixa os informes mensal e trimestral de FII da CVM e os avisos de rendimento do [FundosNet](https://fnet.bmfbovespa.com.br), com cache em `~/.cache/fii`.
+**From the terminal.** Each skill ships its `.py` script next to the `SKILL.md`. The scripts use only the Python 3 standard library, with no dependencies. The stock scripts download annual (DFP) and quarterly (ITR) filings from [CVM](https://dados.cvm.gov.br) and the IPCA inflation index from [IBGE](https://servicodados.ibge.gov.br), with a cache in `~/.cache/cvm`. The FII script downloads CVM's monthly and quarterly FII reports and the distribution notices from [FundosNet](https://fnet.bmfbovespa.com.br), with a cache in `~/.cache/fii`.
 
 ```bash
-# 1. Classificar o ticker (liquidez em R$ mil por dia)
+# 1. Classify the ticker (liquidity in R$ thousands per day)
 python3 skills/analise-de-acoes-b3/classificar.py --ticker ITSA4 --preco 15.97 --liquidez 525625
 
-# 2. Rodar a microskill indicada (exemplo: banco)
+# 2. Run the recommended micro-skill (example: a bank)
 python3 skills/acoes-financeiras/financeiras.py --empresa "BCO BRASIL S.A" --preco 24.64 --payout 0.30
 
-# FIIs: tijolo
+# FIIs: brick-and-mortar
 python3 skills/analise-de-fiis/fii.py --ticker HGLG11 --preco 156.42 --liquidez 22339
 
-# FIIs: papel, com o problema de crédito (% do PL) lido no relatório gerencial
+# FIIs: paper, with the credit problem (% of NAV) read from the manager's report
 python3 skills/analise-de-fiis/fii.py --ticker MXRF11 --preco 9.35 --liquidez 15000 --credito 1.8
 ```
 
-Os preços acima são ilustrativos. Use a cotação do dia, de uma única fonte, com a data registrada.
+The prices above are illustrative. Use the day's price from a single source, and record the date.
 
-## Limitações conhecidas
+## Known limitations
 
-- O método usa o ROE contábil consolidado da CVM, igual para todos. Ele não enxerga lucro recorrente ajustado, ciclos fora da janela de 10 anos nem projeções da empresa.
-- A tabela fixa de tickers do `classificar.py` reflete o desenho original do projeto. Ticker fora dela cai na regra automática.
-- Os scripts dependem do formato dos dados abertos da CVM. Mudança de layout pode quebrar a leitura.
-- Cotação e liquidez são informadas à mão (padrão: Status Invest).
-- FIIs: o rendimento corrente supõe que o patamar atual se mantém. O FundosNet às vezes não responde; o script recorre ao DY mensal ou ao resultado trimestral da CVM e avisa.
-- FIIs: o relatório gerencial muda de layout a cada gestora, por isso o problema de crédito do papel é lido à mão.
+- The method uses CVM's consolidated accounting ROE, the same for every company. It does not see adjusted recurring earnings, cycles outside the 10-year window or company projections.
+- The fixed ticker table in `classificar.py` reflects the project's original design. Tickers outside it fall back to the automatic rule.
+- The scripts depend on the layout of CVM's open data. A layout change can break the parsing.
+- Price and liquidity are entered by hand (default source: Status Invest).
+- FIIs: the current distribution assumes today's level holds. FundosNet sometimes does not respond; the script falls back to CVM's monthly yield or quarterly results and says so.
+- FIIs: manager reports change layout from one asset manager to the next, so the credit problem for paper funds is read by hand.
 
-## Contribuindo
+## Contributing
 
-Veja o [CONTRIBUTING.md](CONTRIBUTING.md). Ideias bem-vindas: novas microskills (seguradoras, saneamento), novos FIIs na tabela fixa, casos de teste, correções de leitura da CVM e melhorias no relatório.
+See [CONTRIBUTING.md](CONTRIBUTING.md). Welcome ideas: new micro-skills (insurers, sanitation), new FIIs in the fixed table, test cases, fixes to CVM parsing and improvements to the report.
 
-## Aviso
+## Related projects
 
-Este projeto é educacional. O resultado de cada relatório é gerado por regra quantitativa fixa a partir de dados públicos e **não é recomendação individual de investimento**. Rentabilidade passada, alocação de carteira, renda fixa e preço de entrada estão fora do escopo. Decisões de investimento são de responsabilidade de quem investe.
+- [global-equity-valuation](https://github.com/abnerk1/global-equity-valuation): the same rules-based approach for US stocks and ADRs.
+- [anchor-and-tilt](https://github.com/abnerk1/anchor-and-tilt): a deterministic ETF allocation rubric.
 
-## Licença
+## Disclaimer
+
+This project is educational. Each report is generated by fixed quantitative rules from public data and **is not personalized investment advice**. Past returns, portfolio allocation, fixed income and entry prices are out of scope. Investment decisions are the investor's responsibility.
+
+## License
 
 [MIT](LICENSE).
