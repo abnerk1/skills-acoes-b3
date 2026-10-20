@@ -25,7 +25,7 @@ Each micro-skill's rule is fixed so results stay comparable across companies. Th
 
 - **Test cases**: ticker, price date, the command you ran and the expected output.
 - **Fixes to CVM parsing** (accounts that get renamed, companies without consolidated statements, share counts reported in thousands).
-- **New micro-skills** (insurers, sanitation) and **new FIIs in the fixed table** of `analise-de-fiis` (ticker, CNPJ and engine). Follow the format of the existing ones: when to use, fixed rule, steps, fixed-format output, script.
+- **New micro-skills** (sanitation) and **new FIIs in the fixed table** of `analise-de-fiis` (ticker, CNPJ and engine). Follow the format of the existing ones: when to use, fixed rule, steps, fixed-format output, script.
 - Improvements to the `analise-de-acoes-b3` report that keep the fixed format.
 
 ## Pull request checklist

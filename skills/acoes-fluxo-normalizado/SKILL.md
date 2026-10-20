@@ -11,8 +11,8 @@ Microskill de cálculo. Entrega um bloco fixo de números; não escreve relatór
 - Commodities e cíclicas: VALE3, PETR4, PRIO3, RECV3, KLBN4, SUZB3, UNIP6, SLCE3, FESA4, RANI3.
 - Indústria madura: TUPY3, SHUL4, KEPL3, CAMB3.
 - Elétricas e concessões: EGIE3, AXIA7, CLSC4 e similares.
-- Seguridade e corretagem: BBSE3, CXSE3, WIZC3.
-- Não usar para bancos (→ Financeiras), empresas de crescimento (→ Crescimento) nem holdings e ativos reais (→ Ativos).
+- Corretoras de seguros: WIZC3.
+- Não usar para seguradoras e holdings de seguros (→ Seguradoras), bancos (→ Financeiras), empresas de crescimento (→ Crescimento) nem holdings e ativos reais (→ Ativos).
 
 ## Regra (fixa, não alterar)
 1. ROE de cada ano = lucro atribuído ao controlador ÷ PL do controlador médio (início e fim do ano). Fonte: DFP consolidada na CVM.

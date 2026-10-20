@@ -9,7 +9,7 @@ Microskill de cálculo. Entrega um bloco fixo de números; não escreve relatór
 
 ## Quando usar
 - Bancos: ROE × patrimônio descreve o negócio (BBAS3, ITUB4, SANB11, BBDC4, ABCB4, BRBI11, BPAC11, BRSR6 etc.).
-- Não usar para seguradoras e corretoras (BBSE3, CXSE3, WIZC3, PSSA3 → Fluxo normalizado) nem holdings (ITSA4 → Ativos, chamando esta skill só para a parte do banco).
+- Não usar para seguradoras (BBSE3, CXSE3, PSSA3 → Seguradoras), corretoras (WIZC3 → Fluxo normalizado) nem holdings (ITSA4 → Ativos, chamando esta skill só para a parte do banco).
 
 ## Regra (fixa, não alterar)
 1. ROE de cada ano = lucro atribuído ao controlador ÷ PL do controlador médio (início e fim do ano). Fonte: DFP consolidada na CVM.
