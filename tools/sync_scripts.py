@@ -19,6 +19,7 @@ SCRIPTS = {
     'acoes-fluxo-normalizado': 'fluxo.py',
     'acoes-crescimento': 'crescimento.py',
     'acoes-ativos': 'ativos.py',
+    'acoes-seguradoras': 'seguradoras.py',
     'analise-de-fiis': 'fii.py',
 }
 BLOCO = re.compile(r'^## Script\s*\n```python\n(.*?)\n```\s*$', re.S | re.M)

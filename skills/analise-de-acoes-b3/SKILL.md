@@ -1,9 +1,9 @@
 ---
 name: "analise-de-acoes-b3"
-description: "Análise de Ações da B3 (estilo analista CNPI): classifica o ticker, chama a microskill de valuation certa, aplica filtro de liquidez e entrega preço justo, preço-teto, DY, viés e relatório em formato fixo."
+description: "Análise de Ações da B3: classifica o ticker, chama a microskill de valuation certa, aplica filtro de liquidez e entrega preço justo, preço-teto, DY, viés e relatório em formato fixo."
 ---
 
-# Análise de Ações da B3 (v1.1)
+# Análise de Ações da B3 (v1.2)
 
 Esta skill não calcula valor. Ela identifica a ação, escolhe a microskill, encadeia as holdings, aplica o filtro de liquidez e escreve o relatório. Toda conta vem do script de uma microskill.
 
@@ -11,7 +11,8 @@ Esta skill não calcula valor. Ela identifica a ação, escolhe a microskill, en
 | Microskill | Para quem | Skill |
 |---|---|---|
 | Financeiras | bancos | `acoes-financeiras` |
-| Fluxo normalizado | commodities, indústria, elétricas, petróleo, seguros, telecom | `acoes-fluxo-normalizado` |
+| Fluxo normalizado | commodities, indústria, elétricas, petróleo, telecom, corretoras de seguros | `acoes-fluxo-normalizado` |
+| Seguradoras (v1.2) | seguradoras, resseguradoras e holdings de seguros | `acoes-seguradoras` |
 | Crescimento | empresas que reinvestem o lucro (varejo, agro, locação, bolsa, educação) | `acoes-crescimento` |
 | Ativos | holdings, incorporadoras, terras, venture capital | `acoes-ativos` |
 
@@ -27,7 +28,7 @@ Esta skill não calcula valor. Ela identifica a ação, escolhe a microskill, en
 2. **Classificar**: salvar o script abaixo como `classificar.py` e rodar
    `python3 classificar.py --ticker ITSA4 --preco 15.97 --liquidez 525625` (liquidez em R$ mil por dia).
    O script resolve o ticker na CVM (FCA), traz o nome da companhia (para o `--empresa` das microskills), as ações por unit, o setor, o valor de mercado, o porte e a microskill. Ticker sem código no FCA (alguns BDRs): passar `--empresa`.
-   - A **tabela fixa** do script prevalece. Fora dela vale a **regra**, nesta ordem: (1) setor CVM "Bancos" → Financeiras; (2) investimentos em coligadas ≥ 50% do PL, propriedades para investimento ≥ 50% do PL, ou construção civil com imóveis a comercializar ≥ 50% do PL → Ativos; (3) setor de commodities, energia, saneamento, seguros, embalagens ou telecom → Fluxo normalizado; (4) retém ≥ 50% do lucro (proventos + recompras, 5 anos) → Crescimento; (5) senão → Fluxo normalizado.
+   - A **tabela fixa** do script prevalece. Fora dela vale a **regra**, nesta ordem: (1) setor CVM "Bancos" → Financeiras; (1b) setor CVM de seguradoras ou previdência → Seguradoras; (2) investimentos em coligadas ≥ 50% do PL, propriedades para investimento ≥ 50% do PL, ou construção civil com imóveis a comercializar ≥ 50% do PL → Ativos; (3) setor de commodities, energia, saneamento, embalagens ou telecom → Fluxo normalizado; (4) retém ≥ 50% do lucro (proventos + recompras, 5 anos) → Crescimento; (5) senão → Fluxo normalizado.
    - Holding que controla companhias listadas e consolida o balanço (ex.: SIMH3) não é pega pela regra: se o RI mostrar que o valor está nas controladas listadas, usar Ativos.
 3. **Encadear holdings** (só Ativos com participações relevantes): no RI, listar as investidas que somam a maior parte do valor e o % do capital total detido. Para cada investida listada, classificar e rodar a microskill dela primeiro; depois rodar `acoes-ativos` com `--participacao "NOME_CVM=PCT@PRECO_JUSTO"`. Ex.: ITSA4 → `acoes-financeiras` no Itaú (R$ 27,90) → `acoes-ativos --participacao "ITAU UNIBANCO HOLDING=0.372@27.90"`.
 4. **Rodar a microskill** escolhida, seguindo os passos dela (prazo do RI em Fluxo, payout declarado, ajustes a mercado em Ativos, `--acoes-por-ativo` para units). Não refazer contas à mão.
@@ -106,7 +107,7 @@ Relatório gerado por regra quantitativa fixa a partir de dados públicos. Não 
 ## Script
 ```python
 #!/usr/bin/env python3
-"""Análise de Ações da B3 (v1.1): identifica a ação na CVM e escolhe a microskill de valuation.
+"""Análise de Ações da B3 (v1.2): identifica a ação na CVM e escolhe a microskill de valuation.
 
 Uso:
   python3 classificar.py --ticker ITSA4 [--preco 15.97] [--liquidez 50] [--empresa "NOME CVM"]
@@ -125,12 +126,14 @@ CAD = 'https://dados.cvm.gov.br/dados/CIA_ABERTA/CAD/DADOS/cad_cia_aberta.csv'
 TABELA = {
     'Financeiras': 'BBAS3 BBAS3 SANB11 SANB3 SANB4 ITUB3 ITUB4 BBDC3 BBDC4 ABCB4 BRBI11 BPAC11 BRSR6',
     'Fluxo normalizado': 'VALE3 PETR3 PETR4 PRIO3 RECV3 KLBN3 KLBN4 KLBN11 SUZB3 UNIP3 UNIP6 SLCE3 FESA4 RANI3 TUPY3 '
-                         'SHUL4 KEPL3 CAMB3 EGIE3 AXIA3 AXIA6 AXIA7 CLSC3 CLSC4 BBSE3 CXSE3 WIZC3 TAEE11 TIMS3 BRKM5',
+                         'SHUL4 KEPL3 CAMB3 EGIE3 AXIA3 AXIA6 AXIA7 CLSC3 CLSC4 WIZC3 TAEE11 TIMS3 BRKM5',
+    'Seguradoras': 'BBSE3 CXSE3 PSSA3 IRBR3',
     'Crescimento': 'B3SA3 VAMO3 GMAT3 VIVA3 SOJA3 TTEN3 PNVL3 MLAS3 FIQE3 SEER3 PLPL3',
     'Ativos': 'AGRO3 EZTC3 G2DI33 SIMH3 ITSA3 ITSA4',
 }
 SETOR_FLUXO = ('extracao mineral', 'petroleo', 'papel', 'celulose', 'metalurgia', 'siderurgia', 'petroquim',
-               'energia eletrica', 'saneamento', 'seguradora', 'previdencia', 'embalagens', 'telecomunica')
+               'energia eletrica', 'saneamento', 'embalagens', 'telecomunica')
+SETOR_SEGUROS = ('seguradora', 'previdencia', 'resseguro')
 
 CVM = 'https://dados.cvm.gov.br/dados/CIA_ABERTA/DOC/{doc}/DADOS/{doc_l}_cia_aberta_{ano}.zip'
 CACHE = os.path.expanduser('~/.cache/cvm')
@@ -396,6 +399,8 @@ def main():
     # regra (para tickers fora da tabela)
     if 'banco' in sn:
         regra, motivo = 'Financeiras', f'setor CVM "{st}"'
+    elif any(x in sn for x in SETOR_SEGUROS):
+        regra, motivo = 'Seguradoras', f'setor CVM "{st}"'
     elif r_inv >= 0.5:
         regra, motivo = 'Ativos', f'investimentos em coligadas = {r_inv:.0%} do PL'
     elif r_prop >= 0.5:

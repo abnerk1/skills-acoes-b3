@@ -14,10 +14,11 @@ The skills, reports and command-line flags are in Portuguese because they analyz
 
 | Skill | Covers | Method | Version |
 |---|---|---|---|
-| [`analise-de-acoes-b3`](skills/analise-de-acoes-b3/SKILL.md) | Entry point (orchestrator) | Classifies the ticker, picks the micro-skill, applies the liquidity filter and writes the report | v1.1 |
+| [`analise-de-acoes-b3`](skills/analise-de-acoes-b3/SKILL.md) | Entry point (orchestrator) | Classifies the ticker, picks the micro-skill, applies the liquidity filter and writes the report | v1.2 |
 | [`acoes-financeiras`](skills/acoes-financeiras/SKILL.md) | Banks | P/B = (real ROE − g) ÷ (10% − g) | v1.2 |
-| [`acoes-fluxo-normalizado`](skills/acoes-fluxo-normalizado/SKILL.md) | Commodities, industrials, utilities, oil, insurance, telecom | Normalized 10-year real ROE × book value, with growth and an optional finite horizon | v1.2 |
+| [`acoes-fluxo-normalizado`](skills/acoes-fluxo-normalizado/SKILL.md) | Commodities, industrials, utilities, oil, telecom, insurance brokers | Normalized 10-year real ROE × book value, with growth and an optional finite horizon | v1.2 |
 | [`acoes-crescimento`](skills/acoes-crescimento/SKILL.md) | Companies that reinvest their earnings (retail, agribusiness, leasing, exchanges) | Two-stage fair P/E based on ROIIC | v1.1 |
+| [`acoes-seguradoras`](skills/acoes-seguradoras/SKILL.md) | Insurers, reinsurers and insurance holding companies | Same normalized-ROE engine, with a cash test based on the parent company's cash flow plus dividends received from subsidiaries | v1 |
 | [`acoes-ativos`](skills/acoes-ativos/SKILL.md) | Holding companies, homebuilders, farmland, venture capital | NAV / sum of the parts | v1.1 |
 
 The orchestrator computes nothing itself: every number comes from a micro-skill's script.
@@ -94,7 +95,7 @@ The prices above are illustrative. Use the day's price from a single source, and
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Welcome ideas: new micro-skills (insurers, sanitation), new FIIs in the fixed table, test cases, fixes to CVM parsing and improvements to the report.
+See [CONTRIBUTING.md](CONTRIBUTING.md). Welcome ideas: new micro-skills (sanitation), new FIIs in the fixed table, test cases, fixes to CVM parsing and improvements to the report.
 
 ## Related projects
 
