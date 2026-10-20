@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Análise de Ações da B3 (v1): identifica a ação na CVM e escolhe a microskill de valuation.
+"""Análise de Ações da B3 (v1.1): identifica a ação na CVM e escolhe a microskill de valuation.
 
 Uso:
   python3 classificar.py --ticker ITSA4 [--preco 15.97] [--liquidez 50] [--empresa "NOME CVM"]

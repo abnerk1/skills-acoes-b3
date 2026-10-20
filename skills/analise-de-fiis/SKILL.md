@@ -1,31 +1,42 @@
 ---
 name: "analise-de-fiis"
-description: "Análise de FIIs da B3: identifica o fundo imobiliário, escolhe o motor (tijolo, papel, fundo de fundos ou transição) e entrega preço-teto, DY esperado, P/VP, viés e relatório em formato fixo. Use para qualquer FII listado na B3."
+description: "Análise de FIIs da B3: identifica o fundo imobiliário, escolhe o motor (tijolo, papel, fundo de fundos, transição, FI-Infra ou Fiagro) e entrega preço-teto, DY esperado, P/VP, viés, status da tese e relatório em formato fixo. Use para qualquer FII, FI-Infra ou Fiagro listado na B3."
 ---
 
-# Análise de FIIs (v1)
+# Análise de FIIs (v1.1)
 
 A skill identifica o FII, roda o script, aplica o filtro de liquidez e escreve o relatório. Toda conta vem do script. Não há preço justo: o resultado é só o preço-teto, com a margem de segurança embutida em cada motor.
 
 ## Motores
 | Motor | Para quem | Preço-teto |
 |---|---|---|
-| Tijolo | lajes, logística, shoppings, renda urbana, híbridos, hotéis | rendimento corrente ÷ 8,75% (÷ 10% em lajes corporativas e hotéis) |
+| Tijolo | lajes, logística, shoppings, renda urbana, híbridos, hotéis | rendimento corrente ÷ 8,75% (÷ 10% em lajes corporativas e hotéis), limitado a 1,05 × VP (v1.1) |
 | Papel | FIIs de CRI | VP × ágio: 1,05 se o problema de crédito for ≤ 5% do PL; 1,00 se for de 5% a 10%; 0,95 se passar de 10%; 1,00 sem relatório gerencial |
 | Fundo de fundos | FIIs que investem em cotas de outros FIIs | VP × 1,00 |
 | Transição | tijolo com alavancagem > 30% do ativo ou rendimento corrente < 6% do VP; fundos de desenvolvimento | VP × 0,80 |
+| FI-Infra (v1.1) | fundos de debêntures incentivadas (Lei 12.431), ex.: JURO11 | VP (cota do informe diário da CVM) × ágio do papel |
+| Fiagro de crédito (v1.1) | Fiagro com CRA e títulos de crédito ≥ 50% do ativo, ex.: KNCA11, SNAG11 | VP × ágio do papel |
+| Fiagro de terras (v1.1) | Fiagro com imóveis rurais ≥ 50% do ativo | igual ao tijolo: rendimento corrente ÷ 8,75%, limitado a 1,05 × VP |
+
+Por que o limite de 1,05 × VP no tijolo: quando o rendimento corrente passa de ~9,2% do VP, a divisão por 8,75% dá um teto acima do valor dos imóveis. Rendimento tão alto costuma vir de reserva, renda de carência ou contrato que vence, não de um patamar que se mantém. O limite é o mesmo ágio máximo do papel.
 
 ## Regras comuns
 - **Rendimento corrente:** média dos 3 últimos avisos de rendimento × 12.
 - **DY esperado:** rendimento corrente ÷ cotação.
 - **Viés:** "Comprar" se cotação ≤ preço-teto; senão, "Aguardar".
+- **Armadilha de dividendo (v1.1):** no tijolo e no papel, se o resultado recorrente de 12 meses (trimestral da CVM, sem ganho na venda de imóveis e títulos) for menor que 80% do rendimento corrente, o script avisa "Possível armadilha de dividendo". Não muda o teto.
+- **Status da tese (v1.1):** separado do viés, calculado pelo script nesta ordem:
+  - **Revisão crítica:** armadilha de dividendo; tijolo rebaixado para transição (alavancagem ou rendimento sobre VP); problema de crédito > 10% do PL.
+  - **Monitoramento:** teto limitado a 1,05 × VP; problema de crédito de 5% a 10% do PL; relatório gerencial não lido (papel, FI-Infra, Fiagro de crédito); Fiagro com títulos vencidos ≥ 5% do PL; motor pela regra (fora da tabela fixa); rendimento por fonte alternativa.
+  - **Consolidada:** nenhum dos casos acima.
+  O viés diz se o preço está bom; o status diz se a tese está de pé. "Comprar" com "Revisão crítica" pede leitura do relatório gerencial antes de qualquer decisão.
 - **Dado faltante:** vira aviso e nunca bloqueia a entrega.
 - **Isolamento:** nunca consultar nem citar tese, preço-teto, ranking ou premissa de casas de análise (research independente, bancos, corretoras). Fontes permitidas: CVM, FundosNet (documentos do próprio fundo), relatório gerencial do fundo e cotação.
 - **Fora do escopo:** alocação de carteira, ranking entre fundos, rentabilidade passada, preço de entrada e recomendação personalizada.
 
 ## Passos
 1. **Cotação e liquidez** de cada ticker, de uma única fonte com data. Padrão: Status Invest, campos "valor atual" e "liquidez média diária". Registrar fonte e data.
-2. **Só para papel (CRI):** ler o relatório gerencial mais recente e anotar o **problema de crédito em % do PL**.
+2. **Só para papel (CRI), FI-Infra e Fiagro de crédito:** ler o relatório gerencial mais recente e anotar o **problema de crédito em % do PL**.
    - Como achar o relatório: FundosNet → Relatórios → Relatório Gerencial, ou o PDF enviado pelo usuário.
    - O que entra na conta: operações que a gestora classifica como watchlist, inadimplente, em reestruturação ou repactuação, mais imóveis recebidos em execução de garantia, tudo pela marcação atual. O que já está marcado a zero fica de fora.
    - Anotar a página. Se o relatório não disser nada sobre crédito, usar 0. Se não houver relatório, omitir `--credito`: o script usa ágio 1,00 e avisa.
@@ -34,7 +45,9 @@ A skill identifica o FII, roda o script, aplica o filtro de liquidez e escreve o
    `python3 fii.py --ticker HGLG11 --preco 156.42 --liquidez 22339 [--credito 1.8]` (liquidez em R$ mil por dia).
    - Rodar no computador do usuário quando houver acesso a ele, porque o FundosNet às vezes não responde da nuvem. Se o FundosNet cair, o script usa o DY mensal da CVM ou, em último caso, o resultado trimestral, e avisa.
    - Se o usuário enviar o aviso de rendimento ou o relatório em PDF, passar os três últimos rendimentos com `--rendimento 1.17,1.17,1.17`.
-   - A **tabela fixa** do script prevalece. Fora dela, a regra decide pela composição do ativo na CVM, nesta ordem: mandato de desenvolvimento → transição; CRI/LCI ≥ 50% → papel; cotas de FII ≥ 50% → fundo de fundos; senão → tijolo. Lajes e hotéis pelo segmento CVM.
+   - **FI-Infra:** não publica aviso de rendimento estruturado no FundosNet. Passar os três últimos rendimentos do relatório gerencial com `--rendimento`; sem isso, o DY sai n/d (o teto não depende dele).
+   - **Fiagro:** dados do informe mensal de Fiagro da CVM; rendimentos pelo FundosNet (com queda para o DY mensal da CVM).
+   - A **tabela fixa** do script prevalece. Fora dela, a regra decide pela composição do ativo na CVM, nesta ordem: mandato de desenvolvimento → transição; CRI/LCI ≥ 50% → papel; cotas de FII ≥ 50% → fundo de fundos; senão → tijolo. Lajes e hotéis pelo segmento CVM. Ticker que não está no informe de FII é procurado no informe de Fiagro. FI-Infra só entra pela tabela fixa (o informe diário de FI não traz ticker).
    - Não refazer contas à mão.
 4. **Filtro de liquidez** (constantes do script):
    - liquidez < R$ 1 mi/dia → alerta "baixa liquidez: montar posição aos poucos";
@@ -45,19 +58,19 @@ A skill identifica o FII, roda o script, aplica o filtro de liquidez e escreve o
 
 ## Quadro-resumo (vários tickers)
 ```
-| Fundo | Motor | Cotação (R$) | Preço-teto (R$) | DY esperado | P/VP | Viés |
+| Fundo | Motor | Cotação (R$) | Preço-teto (R$) | DY esperado | P/VP | Viés | Status da tese |
 ```
 
 ## Relatório (formato fixo)
 ```
 # [TICKER] — [Nome do fundo]
-Análise de FIIs · [DD/MM/AAAA] · Cotação R$ X ([fonte], [data]) · Motor: [Tijolo | Papel | Fundo de fundos | Transição] v1 · [segmento] · Liquidez R$ X mi/dia ([adequada | alerta | filtro])
+Análise de FIIs · [DD/MM/AAAA] · Cotação R$ X ([fonte], [data]) · Motor: [Tijolo | Papel | Fundo de fundos | Transição | FI-Infra | Fiagro de crédito | Fiagro de terras] v1.1 · [segmento] · Liquidez R$ X mi/dia ([adequada | alerta | filtro])
 
 | Cotação | Preço-teto | DY esperado | P/VP | Viés |
 |---|---|---|---|---|
 | R$ X | R$ X | X% | X | Comprar / Aguardar |
 
-Cotação X% [abaixo/acima] do preço-teto.
+Cotação X% [abaixo/acima] do preço-teto. Status da tese: [Consolidada | Monitoramento | Revisão crítica] ([motivos do script]).
 
 ## O que sustenta o valor
 Duas a quatro frases, só com números do script: rendimento corrente e de onde vem (últimos avisos), VP e alavancagem. No papel: problema de crédito e a página do relatório gerencial. Na transição: o gatilho.
@@ -77,13 +90,13 @@ Relatório gerado por regra quantitativa fixa a partir de dados públicos. Não 
 ## Exemplo (17/10/2026)
 ```
 # HGLG11 — Pátria Log FII
-Análise de FIIs · 17/10/2026 · Cotação R$ 156,42 (Status Invest, 17/10/2026) · Motor: Tijolo v1 · Logístico · Liquidez R$ 22,3 mi/dia (adequada)
+Análise de FIIs · 17/10/2026 · Cotação R$ 156,42 (Status Invest, 17/10/2026) · Motor: Tijolo v1.1 · Logístico · Liquidez R$ 22,3 mi/dia (adequada)
 
 | Cotação | Preço-teto | DY esperado | P/VP | Viés |
 |---|---|---|---|---|
 | R$ 156,42 | R$ 160,46 | 9,0% | 0,95 | Comprar |
 
-Cotação 2,5% abaixo do preço-teto.
+Cotação 2,5% abaixo do preço-teto. Status da tese: Consolidada.
 
 ## O que sustenta o valor
 O fundo distribuiu R$ 1,17 por cota em julho, agosto e setembro de 2026, o que dá um rendimento corrente de R$ 14,04 por cota ao ano (8,5% do VP de R$ 165,48). A alavancagem é de 14,6% do ativo, abaixo do gatilho de 30%. O resultado recorrente dos últimos quatro trimestres foi de R$ 12,46 por cota (89% do rendimento corrente).
@@ -103,7 +116,7 @@ Relatório gerado por regra quantitativa fixa a partir de dados públicos. Não 
 ## Script
 ```python
 #!/usr/bin/env python3
-"""Análise de FIIs (v1): identifica o FII, escolhe o motor e calcula preço-teto, DY esperado, P/VP e viés.
+"""Análise de FIIs (v1.1): identifica o FII, FI-Infra ou Fiagro, escolhe o motor e calcula preço-teto, DY esperado, P/VP, viés e status da tese.
 
 Uso:
   python3 fii.py --ticker HGLG11 --preco 155.76 --liquidez 12500 [--credito 2.5] [--rendimento 1.17,1.17,1.17]
@@ -114,12 +127,12 @@ Uso:
     --rendimento rendimentos por cota dos últimos avisos (mais antigo -> mais recente), se o FundosNet
                  estiver fora do ar e o usuário mandar o aviso/relatório em PDF.
 
-Fontes: CVM dados abertos (informe mensal e trimestral de FII) e FundosNet (avisos de rendimento).
+Fontes: CVM dados abertos (informe mensal e trimestral de FII, informe mensal de Fiagro, informe diário de FI) e FundosNet (avisos de rendimento).
 Só biblioteca padrão. Dado faltante vira aviso e nunca bloqueia a entrega.
 """
 import argparse, csv, datetime, io, json, os, re, sys, time, unicodedata, urllib.parse, urllib.request, zipfile
 
-VERSAO = 'v1'
+VERSAO = 'v1.1'
 # --- regras fixas (metodologia de 14-17/10/2026) ---
 YIELD_TETO = {'padrao': 0.0875, 'lajes': 0.10, 'hoteis': 0.10}   # tijolo: teto = rendimento ÷ yield
 AGIO_PAPEL = [(5.0, 1.05), (10.0, 1.00), (float('inf'), 0.95)]  # papel: % PL problema -> teto = VP × fator
@@ -128,6 +141,9 @@ FATOR_FOF = 1.00                                                 # FoF: teto = V
 FATOR_TRANSICAO = 0.80                                           # transição: teto = 0,80 × VP
 GATILHO_ALAV = 0.30                                              # passivo total ÷ ativo
 GATILHO_YIELD_VP = 0.06                                          # rendimento corrente ÷ VP (tijolo)
+TETO_VP_TIJOLO = 1.05                                            # v1.1: teto do tijolo nunca passa de 1,05 × VP
+CREDITO_FIAGRO = 0.50                                            # Fiagro: CRA + títulos de crédito ≥ 50% do ativo -> crédito
+ALERTA_VENCIDOS = 0.05                                           # Fiagro: vencidos ≥ 5% do PL -> monitoramento
 ALERTA_RECORRENTE = 0.80                                         # recorrente 12m < 80% da base -> aviso
 LIQ_MIN, LIQ_FILTRO = 1e6, 0.2e6                                 # R$/dia: alerta e filtro
 
@@ -144,9 +160,14 @@ TABELA = {
     'VGIP11': ('34.197.811/0001-46', 'papel', 'cri'), 'MXRF11': ('97.521.225/0001-25', 'papel', 'cri'),
     'KNUQ11': ('42.754.362/0001-18', 'papel', 'cri'), 'RBRY11': ('30.166.700/0001-11', 'papel', 'cri'),
     'VRTA11': ('11.664.201/0001-00', 'papel', 'cri'),
+    # v1.1: FI-Infra (fundos de debêntures incentivadas, Lei 12.431) e Fiagro
+    'JURO11': ('42.730.834/0001-00', 'infra', 'debentures incentivadas'),
+    'KNCA11': ('41.745.701/0001-37', 'fiagro', 'cra'), 'SNAG11': ('28.152.777/0001-90', 'fiagro', 'cra'),
 }
 
 CVM = 'https://dados.cvm.gov.br/dados/FII/DOC/{tipo}/DADOS/{arq}_{ano}.zip'
+CVM_FIAGRO = 'https://dados.cvm.gov.br/dados/FIAGRO/DOC/INF_MENSAL/DADOS/inf_mensal_fiagro_{am}.zip'
+CVM_FI_DIARIO = 'https://dados.cvm.gov.br/dados/FI/DOC/INF_DIARIO/DADOS/inf_diario_fi_{am}.zip'
 FNET = 'https://fnet.bmfbovespa.com.br/fnet/publico/'
 HDR = {'User-Agent': 'Mozilla/5.0', 'X-Requested-With': 'XMLHttpRequest', 'Referer': FNET + 'abrirGerenciadorDocumentosCVM'}
 CACHE = os.path.expanduser('~/.cache/fii')
@@ -209,6 +230,66 @@ def trimestral(arq_parte, cnpj):
     return ler('INF_TRIMESTRAL', 'inf_trimestral_fii', arq_parte, cnpj)
 
 
+def meses_recentes(n):
+    d = datetime.date.today().replace(day=1)
+    for _ in range(n):
+        yield f'{d.year}{d.month:02d}'
+        d = (d - datetime.timedelta(days=1)).replace(day=1)
+
+
+def baixar_url(url, nome, idade=86400):
+    os.makedirs(CACHE, exist_ok=True)
+    path = os.path.join(CACHE, nome)
+    if not os.path.exists(path) or time.time() - os.path.getmtime(path) > idade:
+        try:
+            urllib.request.urlretrieve(url, path + '.tmp')
+            if zipfile.is_zipfile(path + '.tmp'):
+                os.replace(path + '.tmp', path)
+            else:
+                os.remove(path + '.tmp')
+        except Exception:
+            pass
+    return path if os.path.exists(path) else None
+
+
+def fiagro_mensal(cnpj=None, isin4=None, n=4):
+    """Linhas do informe mensal de Fiagro (CVM) dos últimos meses disponíveis, mais antiga -> mais recente."""
+    linhas = {}
+    for am in meses_recentes(8):
+        z = baixar_url(CVM_FIAGRO.format(am=am), f'fiagro_{am}.zip')
+        if not z:
+            continue
+        with zipfile.ZipFile(z) as zz:
+            nome = next((x for x in zz.namelist() if x == f'inf_mensal_fiagro_{am}.csv'), None)
+            if not nome:
+                continue
+            for r in csv.DictReader(io.TextIOWrapper(zz.open(nome), encoding='latin1'), delimiter=';'):
+                c = re.sub(r'\D', '', r['CNPJ_Classe'])
+                if (cnpj and c == re.sub(r'\D', '', cnpj)) or (isin4 and (r.get('Codigo_ISIN') or '')[2:6] == isin4):
+                    k = (c, r['Data_Referencia'])
+                    if k not in linhas or int(r.get('Versao') or 0) >= int(linhas[k].get('Versao') or 0):
+                        linhas[k] = r
+        if len({k[1] for k in linhas}) >= n:
+            break
+    return sorted(linhas.values(), key=lambda r: r['Data_Referencia'])
+
+
+def fi_cota(cnpj):
+    """Última cota (VL_QUOTA) e PL do fundo no informe diário de FI da CVM."""
+    for am in meses_recentes(3):
+        z = baixar_url(CVM_FI_DIARIO.format(am=am), f'fi_diario_{am}.zip')
+        if not z:
+            continue
+        ult = None
+        with zipfile.ZipFile(z) as zz:
+            for r in csv.DictReader(io.TextIOWrapper(zz.open(zz.namelist()[0]), encoding='latin1'), delimiter=';'):
+                if r['CNPJ_FUNDO_CLASSE'] == cnpj and not r.get('ID_SUBCLASSE') and (ult is None or r['DT_COMPTC'] >= ult['DT_COMPTC']):
+                    ult = r
+        if ult:
+            return num(ult['VL_QUOTA']), num(ult['VL_PATRIM_LIQ']), ult['DT_COMPTC']
+    return 0.0, 0.0, 'n/d'
+
+
 def resolver(ticker):
     """Ticker -> (CNPJ, motor, segmento, origem). Tabela fixa; fora dela, ISIN + composição do ativo."""
     if ticker in TABELA:
@@ -220,7 +301,14 @@ def resolver(ticker):
         if (r.get('Codigo_ISIN') or '')[2:6] == ticker[:4]:
             cands[r['CNPJ_Fundo_Classe']] = r
     if not cands:
-        sys.exit(f'{ticker}: não encontrado no informe mensal da CVM (ISIN). Incluir na tabela fixa com o CNPJ.')
+        fg = fiagro_mensal(isin4=ticker[:4], n=1)
+        if fg:
+            c = fg[-1]['CNPJ_Classe']
+            cnpj = f'{c[:2]}.{c[2:5]}.{c[5:8]}/{c[8:12]}-{c[12:]}'
+            avisos.append(f'{ticker} fora da tabela fixa: encontrado no informe mensal de Fiagro da CVM (CNPJ {cnpj}). Conferir.')
+            return cnpj, 'fiagro', 'n/d', 'regra'
+        sys.exit(f'{ticker}: não encontrado nos informes mensais de FII e Fiagro da CVM (ISIN). '
+                 'FI-Infra e outros fundos sem ISIN no informe: incluir na tabela fixa com o CNPJ.')
     comp = {c: (mensal('complemento', c) or [{}])[-1] for c in cands}
     cnpj = max(cands, key=lambda c: num(comp[c].get('Patrimonio_Liquido')))  # ISIN usado por mais de um fundo: maior PL
     if len(cands) > 1:
@@ -261,10 +349,10 @@ def fnet_get(url, tries=8, timeout=12):
     raise RuntimeError(err)
 
 
-def fnet_rendimentos(cnpj, ticker, n=8, prazo=150):
+def fnet_rendimentos(cnpj, ticker, n=8, prazo=150, tipo_fundo=1):
     """Rendimento por cota dos últimos avisos estruturados (mais antigo -> mais recente)."""
     fim = time.time() + prazo
-    q = {'d': 0, 's': 0, 'l': n, 'o[0][dataEntrega]': 'desc', 'tipoFundo': 1, 'idCategoriaDocumento': 14,
+    q = {'d': 0, 's': 0, 'l': n, 'o[0][dataEntrega]': 'desc', 'tipoFundo': tipo_fundo, 'idCategoriaDocumento': 14,
          'idTipoDocumento': 41, 'idEspecieDocumento': 0, 'cnpjFundo': re.sub(r'\D', '', cnpj)}
     docs = json.loads(fnet_get(FNET + 'pesquisarGerenciadorDocumentosDados?' + urllib.parse.urlencode(q)))['data']
     cache = os.path.join(CACHE, 'fnet')
@@ -300,6 +388,136 @@ def fnet_rendimentos(cnpj, ticker, n=8, prazo=150):
     return [(por_mes[k][2], por_mes[k][0]) for k in meses]
 
 
+# ---------------- FI-Infra e Fiagro (v1.1) ----------------
+def credito_alternativo(a, t, cnpj, motor_base, segmento, origem):
+    """FI-Infra (debêntures incentivadas) e Fiagro: mesmos fatores do papel; Fiagro de terras segue o tijolo."""
+    criticos, monitorar = [], []
+    serie, fonte_rend, alav, cotas, yv = [], None, 0.0, 0.0, 0.0
+    if a.rendimento:
+        serie = [('informado', num(x)) for x in a.rendimento.split(',') if x.strip()]
+        fonte_rend = 'informado pelo usuário (aviso/relatório em PDF)'
+    if motor_base == 'fiagro':
+        fg = fiagro_mensal(cnpj=cnpj)
+        if not fg:
+            sys.exit(f'{t}: CNPJ {cnpj} sem informe mensal de Fiagro na CVM.')
+        u = fg[-1]
+        nome, ref_vp = u['Nome_Classe'], u['Data_Referencia'][:7]
+        vp, cotas, ativo, pl = (num(u[k]) for k in ('Valor_Patrimonial_Cotas', 'Cotas_Emitidas', 'Valor_Ativo', 'Patrimonio_Liquido'))
+        alav = num(u.get('Total_Passivo')) / ativo if ativo else 0.0
+        cred = (num(u.get('CRA')) + num(u.get('CRI')) + num(u.get('Valor_Titulos_Credito'))) / ativo if ativo else 0.0
+        terras = num(u.get('Imoveis_Rurais')) / ativo if ativo else 0.0
+        sub = 'terras' if terras >= 0.5 and cred < CREDITO_FIAGRO else 'credito'
+        segmento = f'Fiagro {"de terras" if sub == "terras" else "de crédito"} (CRA/crédito {cred:.0%}, terras {terras:.0%} do ativo)'
+        venc = num(u.get('Vencidos')) / pl if pl else 0.0
+        if venc > 0:
+            avisos.append(f'Títulos vencidos somam {venc:.1%} do PL no informe mensal da CVM ({ref_vp}).')
+            if venc >= ALERTA_VENCIDOS:
+                monitorar.append(f'vencidos {venc:.1%} do PL')
+        if not serie:
+            for tf in (11, 1):  # Fiagro migrou de tipoFundo 1 para 11 no FundosNet
+                try:
+                    serie = fnet_rendimentos(cnpj, t, tipo_fundo=tf)
+                except Exception:
+                    serie = []
+                if serie and serie[-1][0][-4:] >= str(datetime.date.today().year - 1):
+                    fonte_rend = 'FundosNet, avisos de rendimento'
+                    break
+        if not fonte_rend:
+            ult = [(r['Data_Referencia'][:7], num(r['Dividend_Yield_Mes']) / 100 * num(r['Valor_Patrimonial_Cotas'])) for r in fg[-3:]]
+            if len(ult) == 3 and all(v > 0 for _, v in ult):
+                serie, fonte_rend = ult, 'CVM, informe mensal de Fiagro (DY do mês × VP)'
+                avisos.append('Rendimento pela CVM (DY mensal × VP): aproximação dos avisos de rendimento.')
+                monitorar.append('rendimento por fonte alternativa')
+    else:
+        sub = 'credito'
+        nome = 'FI-Infra (debêntures incentivadas)'
+        vp, pl, ref_vp = fi_cota(cnpj)
+        if not vp:
+            sys.exit(f'{t}: CNPJ {cnpj} sem cota no informe diário de FI da CVM.')
+        if not serie:
+            avisos.append('FI-Infra não publica aviso de rendimento estruturado no FundosNet: informar --rendimento '
+                          'com os três últimos rendimentos do relatório gerencial. Sem isso, DY n/d (o teto não depende dele).')
+    ult3 = [v for _, v in serie[-3:]]
+    rend = sum(ult3) / len(ult3) * 12 if ult3 else 0.0
+    yv = rend / vp if vp else 0.0
+    motor = 'infra' if motor_base == 'infra' else f'fiagro-{sub}'
+    if sub == 'terras':
+        y = YIELD_TETO['padrao']
+        teto_y = rend / y if rend else 0.0
+        teto = min(teto_y, TETO_VP_TIJOLO * vp)
+        conta = f'rendimento corrente R$ {rend:.2f}/cota ÷ {y:.2%} = R$ {teto_y:.2f}'
+        if teto < teto_y:
+            conta += f'; limitado a {TETO_VP_TIJOLO:.2f} × VP R$ {vp:.2f} = R$ {teto:.2f}'
+            monitorar.append(f'teto limitado a {TETO_VP_TIJOLO:.2f} × VP')
+    else:
+        if a.credito is None:
+            fator = AGIO_PAPEL_SEM_RG
+            avisos.append('Relatório gerencial não lido: ágio limitado a 0% (teto = VP).')
+            monitorar.append('relatório gerencial não lido')
+        else:
+            fator = next(f for lim, f in AGIO_PAPEL if a.credito <= lim)
+            if fator < 1.0:
+                criticos.append(f'problema de crédito {a.credito:.1f}% do PL')
+            elif fator == 1.0:
+                monitorar.append(f'problema de crédito {a.credito:.1f}% do PL')
+        teto = vp * fator
+        conta = f'VP R$ {vp:.2f} × {fator:.2f}' + (f' (problema de crédito {a.credito:.1f}% do PL)' if a.credito is not None else '') + f' = R$ {teto:.2f}'
+    if origem == 'regra':
+        monitorar.append('motor pela regra, fora da tabela fixa')
+    emitir(a, dict(ticker=t, cnpj=cnpj, nome=nome, origem=origem, motor=motor, motor_base=motor_base, segmento=segmento,
+                   teto=teto, conta=conta, vp=vp, ref_vp=ref_vp, cotas=cotas, alavancagem=alav, rendimento_corrente=rend,
+                   serie=serie, rendimento_12m=sum(v for _, v in serie[-12:]) if len(serie) >= 12 else None,
+                   fonte_rendimento=fonte_rend, recorrente_12m=None, ref_trimestral='n/d', yield_sobre_vp=yv),
+           criticos, monitorar)
+
+
+def emitir(a, d, criticos, monitorar):
+    """Viés, liquidez, status da tese e saída (texto ou JSON). Comum a todos os motores."""
+    teto, rend, vp = d['teto'], d['rendimento_corrente'], d['vp']
+    dy = rend / a.preco if a.preco and rend else 0.0
+    pvp = a.preco / vp if vp else 0.0
+    vies = 'Comprar' if teto and a.preco <= teto else 'Aguardar'
+    liq_status = 'n/d'
+    if a.liquidez is not None:
+        liq = a.liquidez * 1e3
+        if liq < LIQ_FILTRO:
+            liq_status = 'filtro'
+            vies = 'Aguardar (liquidez)'
+        elif liq < LIQ_MIN:
+            liq_status = 'alerta'
+            avisos.append('Baixa liquidez (< R$ 1 mi/dia): montar posição aos poucos.')
+        else:
+            liq_status = 'adequada'
+    # Status da tese (v1.1): separado do viés. Crítica > Monitoramento > Consolidada
+    if criticos:
+        status = 'Revisão crítica (' + '; '.join(criticos) + ')'
+    elif monitorar:
+        status = 'Monitoramento (' + '; '.join(monitorar) + ')'
+    else:
+        status = 'Consolidada'
+    serie, rec, rend12 = d.pop('serie'), d['recorrente_12m'], d['rendimento_12m']
+    out = dict(d, versao=VERSAO, preco=a.preco, teto=round(teto, 2), dy_esperado=round(dy, 4), p_vp=round(pvp, 2), vies=vies,
+               status_tese=status, distancia_teto=round(a.preco / teto - 1, 4) if teto else None,
+               vp=round(vp, 2), alavancagem=round(d['alavancagem'], 4), rendimento_corrente=round(rend, 4),
+               ultimos_rendimentos=serie[-3:], rendimento_12m=round(rend12, 2) if rend12 else None,
+               recorrente_12m=round(rec, 2) if rec is not None else None, yield_sobre_vp=round(d['yield_sobre_vp'], 4),
+               credito=a.credito, liquidez_mil=a.liquidez, liquidez=liq_status, avisos=avisos)
+    if a.json:
+        print(json.dumps(out, ensure_ascii=False, default=str))
+        return
+    t, motor, motor_base = d['ticker'], d['motor'], d['motor_base']
+    print(f"{t} | {d['nome']} | CNPJ {d['cnpj']} ({d['origem']})")
+    print(f"MOTOR: {motor}{' (base ' + motor_base + ')' if motor != motor_base and motor_base in ('tijolo', 'papel', 'fof') else ''} | segmento {d['segmento']}")
+    print(f"Preço R$ {a.preco:.2f} | Teto R$ {teto:.2f} | DY esperado {f'{dy:.1%}' if rend else 'n/d'} | P/VP {pvp:.2f} | VIÉS: {vies}")
+    print(f"STATUS DA TESE: {status}")
+    print(f"Conta: {d['conta']}")
+    print(f"VP R$ {vp:.2f} ({d['ref_vp']}) | alavancagem {d['alavancagem']:.1%} | rendimento corrente R$ {rend:.2f}/cota "
+          f"({d['fonte_rendimento'] or 'n/d'}) | últimos: {', '.join(f'{x} R$ {v:.3f}' for x, v in serie[-3:])}")
+    print(f"Recorrente 12m: {'n/d' if rec is None else f'R$ {rec:.2f}'} ({d['ref_trimestral']}) | liquidez: {liq_status}")
+    for x in avisos:
+        print('AVISO:', x)
+
+
 # ---------------- cálculo ----------------
 def main():
     ap = argparse.ArgumentParser()
@@ -312,6 +530,8 @@ def main():
     a = ap.parse_args()
     t = a.ticker.upper()
     cnpj, motor_base, segmento, origem = resolver(t)
+    if motor_base in ('infra', 'fiagro'):
+        return credito_alternativo(a, t, cnpj, motor_base, segmento, origem)
 
     comp = mensal('complemento', cnpj)
     if not comp:
@@ -380,20 +600,38 @@ def main():
         elif rend and yv < GATILHO_YIELD_VP:
             motor, gatilho = 'transicao', f'rendimento corrente {yv:.1%} do VP (< {GATILHO_YIELD_VP:.0%})'
 
-    if motor_base == 'tijolo' and rec is not None and rend and rec < ALERTA_RECORRENTE * rend:
-        avisos.append(f'Resultado recorrente de 12m (R$ {rec:.2f}/cota, {ref_tri}) é {rec / rend:.0%} do rendimento '
-                      f'corrente: distribuição apoiada em ganho de capital ou reservas.')
+    criticos, monitorar = [], []
+    if motor_base in ('tijolo', 'papel') and rec is not None and rend and rec < ALERTA_RECORRENTE * rend:
+        avisos.append(f'Possível armadilha de dividendo: resultado recorrente de 12m (R$ {rec:.2f}/cota, {ref_tri}) é '
+                      f'{rec / rend:.0%} do rendimento corrente; distribuição apoiada em ganho de capital ou reservas.')
+        criticos.append('armadilha de dividendo')
+    if gatilho:
+        criticos.append(f'transição: {gatilho}')
+    if origem == 'regra':
+        monitorar.append('motor pela regra, fora da tabela fixa')
+    if fonte_rend and not fonte_rend.startswith(('FundosNet', 'informado')):
+        monitorar.append('rendimento por fonte alternativa')
 
     if motor == 'tijolo':
         y = YIELD_TETO.get(segmento, YIELD_TETO['padrao'])
-        teto = rend / y if rend else 0.0
-        conta = f'rendimento corrente R$ {rend:.2f}/cota ÷ {y:.2%} = R$ {teto:.2f}'
+        teto_y = rend / y if rend else 0.0
+        teto = min(teto_y, TETO_VP_TIJOLO * vp) if vp else teto_y
+        conta = f'rendimento corrente R$ {rend:.2f}/cota ÷ {y:.2%} = R$ {teto_y:.2f}'
+        if teto < teto_y:  # v1.1: rendimento alto demais para o VP; o mercado pode estar precificando risco
+            conta += f'; limitado a {TETO_VP_TIJOLO:.2f} × VP R$ {vp:.2f} = R$ {teto:.2f}'
+            monitorar.append(f'teto limitado a {TETO_VP_TIJOLO:.2f} × VP')
     elif motor == 'papel':
         if a.credito is None:
             fator = AGIO_PAPEL_SEM_RG
             avisos.append('Relatório gerencial não lido: ágio do papel limitado a 0% (teto = VP).')
         else:
             fator = next(f for lim, f in AGIO_PAPEL if a.credito <= lim)
+        if a.credito is None:
+            monitorar.append('relatório gerencial não lido')
+        elif fator < 1.0:
+            criticos.append(f'problema de crédito {a.credito:.1f}% do PL')
+        elif fator == 1.0:
+            monitorar.append(f'problema de crédito {a.credito:.1f}% do PL')
         teto = vp * fator
         conta = f'VP R$ {vp:.2f} × {fator:.2f}' + (f' (problema de crédito {a.credito:.1f}% do PL)' if a.credito is not None else '') + f' = R$ {teto:.2f}'
     elif motor == 'fof':
@@ -403,41 +641,11 @@ def main():
         teto = vp * FATOR_TRANSICAO
         conta = f'VP R$ {vp:.2f} × {FATOR_TRANSICAO:.2f} = R$ {teto:.2f}' + (f' (gatilho: {gatilho})' if gatilho else ' (desenvolvimento)')
 
-    dy = rend / a.preco if a.preco and rend else 0.0
-    pvp = a.preco / vp if vp else 0.0
-    vies = 'Comprar' if teto and a.preco <= teto else 'Aguardar'
-    liq_status = 'n/d'
-    if a.liquidez is not None:
-        liq = a.liquidez * 1e3
-        if liq < LIQ_FILTRO:
-            liq_status = 'filtro'
-            vies = 'Aguardar (liquidez)'
-        elif liq < LIQ_MIN:
-            liq_status = 'alerta'
-            avisos.append('Baixa liquidez (< R$ 1 mi/dia): montar posição aos poucos.')
-        else:
-            liq_status = 'adequada'
-
-    out = dict(ticker=t, cnpj=cnpj, nome=(mensal('geral', cnpj) or [{}])[-1].get('Nome_Fundo_Classe', ''),
-               origem=origem, motor=motor, motor_base=motor_base, segmento=segmento, versao=VERSAO,
-               preco=a.preco, teto=round(teto, 2), dy_esperado=round(dy, 4), p_vp=round(pvp, 2), vies=vies,
-               distancia_teto=round(a.preco / teto - 1, 4) if teto else None, conta=conta,
-               vp=round(vp, 2), ref_vp=ref_vp, cotas=cotas, alavancagem=round(alav, 4), rendimento_corrente=round(rend, 4),
-               ultimos_rendimentos=serie[-3:], rendimento_12m=round(rend12, 2) if rend12 else None, fonte_rendimento=fonte_rend,
-               recorrente_12m=round(rec, 2) if rec is not None else None, ref_trimestral=ref_tri,
-               yield_sobre_vp=round(yv, 4), credito=a.credito, liquidez_mil=a.liquidez, liquidez=liq_status, avisos=avisos)
-    if a.json:
-        print(json.dumps(out, ensure_ascii=False, default=str))
-        return
-    print(f"{t} | {out['nome']} | CNPJ {cnpj} ({origem})")
-    print(f"MOTOR: {motor}{' (base ' + motor_base + ')' if motor != motor_base else ''} | segmento {segmento}")
-    print(f"Preço R$ {a.preco:.2f} | Teto R$ {teto:.2f} | DY esperado {dy:.1%} | P/VP {pvp:.2f} | VIÉS: {vies}")
-    print(f'Conta: {conta}')
-    print(f"VP R$ {vp:.2f} ({ref_vp}) | alavancagem {alav:.1%} | rendimento corrente R$ {rend:.2f}/cota ({fonte_rend}) | "
-          f"últimos: {', '.join(f'{d} R$ {v:.3f}' for d, v in serie[-3:])}")
-    print(f"Recorrente 12m: {'n/d' if rec is None else f'R$ {rec:.2f}'} ({ref_tri}) | liquidez: {liq_status}")
-    for x in avisos:
-        print('AVISO:', x)
+    nome = (mensal('geral', cnpj) or [{}])[-1].get('Nome_Fundo_Classe', '')
+    emitir(a, dict(ticker=t, cnpj=cnpj, nome=nome, origem=origem, motor=motor, motor_base=motor_base, segmento=segmento,
+                   teto=teto, conta=conta, vp=vp, ref_vp=ref_vp, cotas=cotas, alavancagem=alav, rendimento_corrente=rend,
+                   serie=serie, rendimento_12m=rend12, fonte_rendimento=fonte_rend, recorrente_12m=rec, ref_trimestral=ref_tri,
+                   yield_sobre_vp=yv), criticos, monitorar)
 
 
 if __name__ == '__main__':

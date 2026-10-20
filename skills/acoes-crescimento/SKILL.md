@@ -3,7 +3,7 @@ name: "acoes-crescimento"
 description: "Calcula preço justo, preço-teto, DY esperado e viés de empresas da B3 que reinvestem o lucro para crescer (varejo, agro, locação, bolsa), por P/L justo de dois estágios com ROIIC. Não use para bancos, commodities nem holdings."
 ---
 
-# Crescimento — valuation por P/L justo com ROIIC (v1)
+# Crescimento — valuation por P/L justo com ROIIC (v1.1)
 
 Microskill de cálculo. Entrega um bloco fixo de números; não escreve relatório (isso é da maestrina).
 
@@ -29,6 +29,15 @@ Microskill de cálculo. Entrega um bloco fixo de números; não escreve relatór
 
 Ke de 10% real, margem de 20%, fase 1 de 5 anos, teto de 10% em g1 e perpetuidade de 2,5% são constantes. Crescimento só existe se houver lucro retido: sem retenção, g1 = 0 (crescimento sem capital não entra no preço).
 
+## Armadilha de dividendo e status da tese (v1.1)
+Só avisos: nada aqui muda preço justo, teto ou viés.
+- **Armadilha de dividendo:** proventos pagos (dividendos + JCP, DFC) somados nos últimos 3 exercícios acima do lucro do controlador no mesmo período (payout > 100%). Três anos, e não um, para não confundir dividendo extraordinário de capital excedente com distribuição insustentável.
+- **Status da tese**, separado do viés, calculado pelo script nesta ordem:
+  - **Revisão crítica:** armadilha de dividendo, ou preço justo zerado pela regra.
+  - **Monitoramento:** (FCO − capex) dos últimos 3 exercícios abaixo dos proventos pagos no período; ROE dos últimos 12 meses a mais de 5 p.p. da média de 10 anos; lucro vira pouco caixa: (FCO − capex) < 60% do lucro em 10 anos; ROIIC entre 0 e 10% (crescer destrói valor); ROIIC puxado por anos com patrimônio abaixo de 20% do atual; menos de 10 anos de dados.
+  - **Consolidada:** nenhum dos casos acima.
+  O viés diz se o preço está bom; o status diz se a tese está de pé.
+
 ## Passos
 1. **Identificar** o nome da companhia como aparece na CVM (ex.: "B3 S.A.", "VAMOS LOC", "GRUPO MATEUS", "VIVARA", "BOA SAFRA", "TENTOS", "DIMED") e quantas ações compõem o ativo negociado.
 2. **Cotação atual**: uma única fonte, com data. Registrar fonte e data.
@@ -41,12 +50,13 @@ Ke de 10% real, margem de 20%, fase 1 de 5 anos, teto de 10% em g1 e perpetuidad
 
 ## Saída (formato fixo)
 ```
-[TICKER] — Crescimento v1 — cotação de DD/MM/AAAA (fonte)
+[TICKER] — Crescimento v1.1 — cotação de DD/MM/AAAA (fonte)
 Preço atual:  R$ X
 Preço justo:  R$ X   (bear R$ X | bull R$ X)
 Preço-teto:   R$ X
 DY esperado:  X%     (payout X%, fonte)
 Viés:         Comprar | Aguardar
+Status da tese: Consolidada | Monitoramento (motivos) | Revisão crítica (motivos)
 Memória de cálculo: lucro base R$ X bi | ROIIC X% | retenção X% | g1 X% (5 anos) | g2 2,5% | P/L justo X
 Avisos: (lista do script, se houver)
 ```
@@ -60,7 +70,7 @@ Incluir a tabela anual de ROE impressa pelo script quando o usuário pedir detal
 ## Script
 ```python
 #!/usr/bin/env python3
-"""Microskill Crescimento (v1): preço justo e preço-teto de empresas que reinvestem para crescer.
+"""Microskill Crescimento (v1.1): preço justo e preço-teto de empresas que reinvestem para crescer.
 
 Fontes: CVM dados abertos (DFP/ITR; consolidado, ou individual se não houver) e IBGE (IPCA).
 Regra v1:
@@ -174,7 +184,7 @@ def coletar(cnpj, zpath, doc, ano):
             if cd.count('.') == 1 and d.startswith('lucro') and not ll.get(k, (0, 0.0))[1]:
                 ll[k] = (int(ano), float(r['VL_CONTA']) * escala(r))
         for r in ultima_versao([r for r in ler(zpath, f'{p}BPP_ind_{ano}.csv') if r['CNPJ_CIA'] == cnpj]):
-            if r['CD_CONTA'] == '2.03' and not pl_c.get(r['DT_FIM_EXERC']):
+            if r['CD_CONTA'].count('.') == 1 and norm(r['DS_CONTA']).startswith('patrimonio liquido') and not pl_c.get(r['DT_FIM_EXERC']):
                 pl_c[r['DT_FIM_EXERC']] = float(r['VL_CONTA']) * escala(r)
     fco, capex = {}, {}
     for arq in (f'{p}DFC_MI_con_{ano}.csv', f'{p}DFC_MD_con_{ano}.csv'):
@@ -417,7 +427,7 @@ def main():
         f_ant = f'{int(f_atual[:4]) - 1}{f_atual[4:]}'
         anual = ll.get((f'{ultimo}-01-01', f'{ultimo}-12-31'), (0, None))[1]
         ytd_ant = ll.get((f'{ultimo}-01-01', f_ant), (0, None))[1]
-        if None not in (anual, ytd_ant) and f'{ultimo}-12-31' in pl and f_atual in pl:
+        if None not in (anual, ytd_ant) and pl.get(f'{ultimo}-12-31') and pl.get(f_atual):
             roe_ltm = (anual - ytd_ant + lucro_ytd) / ((pl[f'{ultimo}-12-31'] + pl[f_atual]) / 2)
 
     print(f'Empresa: {nome}  (CNPJ {cnpj})')
@@ -463,6 +473,43 @@ def main():
         avisos.append('ROIIC ≤ 0: preço justo zerado pela regra.')
     elif roiic < KE:
         avisos.append(f'ROIIC ({roiic:.1%}) abaixo do custo de capital (10%): crescer destrói valor; o P/L justo fica abaixo de 10x.')
+    # Armadilha de dividendo (v1.1): só aviso, não muda o número
+    armadilha = []
+    anos_d = [y for y in range(ultimo - 2, ultimo + 1) if f'{y}-12-31' in divs and (f'{y}-01-01', f'{y}-12-31') in ll]
+    if len(anos_d) == 3:
+        pago_d = sum(divs[f'{y}-12-31'] for y in anos_d)
+        lucro_d = sum(ll[(f'{y}-01-01', f'{y}-12-31')][1] for y in anos_d)
+        if pago_d > max(lucro_d, 0.0):
+            armadilha.append(f'proventos pagos em {anos_d[0]}-{anos_d[-1]} (R$ {pago_d / 1e9:.2f} bi) acima do lucro do período (R$ {lucro_d / 1e9:.2f} bi), payout > 100%')
+    caixa_curto = False
+    anos_f = [y for y in range(ultimo - 2, ultimo + 1) if f'{y}-12-31' in fcos and f'{y}-12-31' in divs]
+    if len(anos_f) == 3:
+        fcl_f = sum(fcos[f'{y}-12-31'] - capexs.get(f'{y}-12-31', 0.0) for y in anos_f)
+        div_f = sum(divs[f'{y}-12-31'] for y in anos_f)
+        if div_f > 0 and fcl_f < div_f:
+            caixa_curto = True
+            avisos.append(f'Caixa não cobre os proventos: (FCO - capex) de {anos_f[0]}-{anos_f[-1]} (R$ {fcl_f / 1e9:.2f} bi) ficou abaixo dos '
+                          f'proventos pagos no período (R$ {div_f / 1e9:.2f} bi). Conferir se a diferença veio de dívida ou venda de ativos '
+                          '(em holdings e seguradoras, dividendos recebidos de investidas entram fora do FCO).')
+    if armadilha:
+        avisos.append('Possível armadilha de dividendo: ' + '; '.join(armadilha) + '. O DY esperado pode não se sustentar.')
+
+    # Status da tese (v1.1): separado do viés. Crítica > Monitoramento > Consolidada
+    criticos = (['armadilha de dividendo'] if armadilha else []) + (['preço justo zerado pela regra'] if pj <= 0 else [])
+    MONITOR = [('caixa não cobre os proventos', caixa_curto),
+               ('ROE dos últimos 12 meses longe da média', roe_ltm is not None and abs(roe_ltm - roe_nom) > 0.05),
+               ('lucro vira pouco caixa', conv is not None and conv < 0.6),
+               ('ROIIC abaixo do custo de capital', 0 < roiic < KE),
+               ('ROIIC puxado por anos de patrimônio pequeno', bool(pequenos)),
+               ('menos de 10 anos de dados', len(roes) < 10)]
+    monitorar = [m for m, c in MONITOR if c]
+    if criticos:
+        status = 'Revisão crítica (' + '; '.join(criticos) + ')'
+    elif monitorar:
+        status = 'Monitoramento (' + '; '.join(monitorar) + ')'
+    else:
+        status = 'Consolidada'
+    print(f'Status da tese: {status}')
     if avisos:
         print('\nAvisos:')
         for x in avisos:

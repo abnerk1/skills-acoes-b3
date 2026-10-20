@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Microskill Crescimento (v1): preço justo e preço-teto de empresas que reinvestem para crescer.
+"""Microskill Crescimento (v1.1): preço justo e preço-teto de empresas que reinvestem para crescer.
 
 Fontes: CVM dados abertos (DFP/ITR; consolidado, ou individual se não houver) e IBGE (IPCA).
 Regra v1:
@@ -113,7 +113,7 @@ def coletar(cnpj, zpath, doc, ano):
             if cd.count('.') == 1 and d.startswith('lucro') and not ll.get(k, (0, 0.0))[1]:
                 ll[k] = (int(ano), float(r['VL_CONTA']) * escala(r))
         for r in ultima_versao([r for r in ler(zpath, f'{p}BPP_ind_{ano}.csv') if r['CNPJ_CIA'] == cnpj]):
-            if r['CD_CONTA'] == '2.03' and not pl_c.get(r['DT_FIM_EXERC']):
+            if r['CD_CONTA'].count('.') == 1 and norm(r['DS_CONTA']).startswith('patrimonio liquido') and not pl_c.get(r['DT_FIM_EXERC']):
                 pl_c[r['DT_FIM_EXERC']] = float(r['VL_CONTA']) * escala(r)
     fco, capex = {}, {}
     for arq in (f'{p}DFC_MI_con_{ano}.csv', f'{p}DFC_MD_con_{ano}.csv'):
@@ -356,7 +356,7 @@ def main():
         f_ant = f'{int(f_atual[:4]) - 1}{f_atual[4:]}'
         anual = ll.get((f'{ultimo}-01-01', f'{ultimo}-12-31'), (0, None))[1]
         ytd_ant = ll.get((f'{ultimo}-01-01', f_ant), (0, None))[1]
-        if None not in (anual, ytd_ant) and f'{ultimo}-12-31' in pl and f_atual in pl:
+        if None not in (anual, ytd_ant) and pl.get(f'{ultimo}-12-31') and pl.get(f_atual):
             roe_ltm = (anual - ytd_ant + lucro_ytd) / ((pl[f'{ultimo}-12-31'] + pl[f_atual]) / 2)
 
     print(f'Empresa: {nome}  (CNPJ {cnpj})')
@@ -402,6 +402,43 @@ def main():
         avisos.append('ROIIC ≤ 0: preço justo zerado pela regra.')
     elif roiic < KE:
         avisos.append(f'ROIIC ({roiic:.1%}) abaixo do custo de capital (10%): crescer destrói valor; o P/L justo fica abaixo de 10x.')
+    # Armadilha de dividendo (v1.1): só aviso, não muda o número
+    armadilha = []
+    anos_d = [y for y in range(ultimo - 2, ultimo + 1) if f'{y}-12-31' in divs and (f'{y}-01-01', f'{y}-12-31') in ll]
+    if len(anos_d) == 3:
+        pago_d = sum(divs[f'{y}-12-31'] for y in anos_d)
+        lucro_d = sum(ll[(f'{y}-01-01', f'{y}-12-31')][1] for y in anos_d)
+        if pago_d > max(lucro_d, 0.0):
+            armadilha.append(f'proventos pagos em {anos_d[0]}-{anos_d[-1]} (R$ {pago_d / 1e9:.2f} bi) acima do lucro do período (R$ {lucro_d / 1e9:.2f} bi), payout > 100%')
+    caixa_curto = False
+    anos_f = [y for y in range(ultimo - 2, ultimo + 1) if f'{y}-12-31' in fcos and f'{y}-12-31' in divs]
+    if len(anos_f) == 3:
+        fcl_f = sum(fcos[f'{y}-12-31'] - capexs.get(f'{y}-12-31', 0.0) for y in anos_f)
+        div_f = sum(divs[f'{y}-12-31'] for y in anos_f)
+        if div_f > 0 and fcl_f < div_f:
+            caixa_curto = True
+            avisos.append(f'Caixa não cobre os proventos: (FCO - capex) de {anos_f[0]}-{anos_f[-1]} (R$ {fcl_f / 1e9:.2f} bi) ficou abaixo dos '
+                          f'proventos pagos no período (R$ {div_f / 1e9:.2f} bi). Conferir se a diferença veio de dívida ou venda de ativos '
+                          '(em holdings e seguradoras, dividendos recebidos de investidas entram fora do FCO).')
+    if armadilha:
+        avisos.append('Possível armadilha de dividendo: ' + '; '.join(armadilha) + '. O DY esperado pode não se sustentar.')
+
+    # Status da tese (v1.1): separado do viés. Crítica > Monitoramento > Consolidada
+    criticos = (['armadilha de dividendo'] if armadilha else []) + (['preço justo zerado pela regra'] if pj <= 0 else [])
+    MONITOR = [('caixa não cobre os proventos', caixa_curto),
+               ('ROE dos últimos 12 meses longe da média', roe_ltm is not None and abs(roe_ltm - roe_nom) > 0.05),
+               ('lucro vira pouco caixa', conv is not None and conv < 0.6),
+               ('ROIIC abaixo do custo de capital', 0 < roiic < KE),
+               ('ROIIC puxado por anos de patrimônio pequeno', bool(pequenos)),
+               ('menos de 10 anos de dados', len(roes) < 10)]
+    monitorar = [m for m, c in MONITOR if c]
+    if criticos:
+        status = 'Revisão crítica (' + '; '.join(criticos) + ')'
+    elif monitorar:
+        status = 'Monitoramento (' + '; '.join(monitorar) + ')'
+    else:
+        status = 'Consolidada'
+    print(f'Status da tese: {status}')
     if avisos:
         print('\nAvisos:')
         for x in avisos:

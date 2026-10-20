@@ -3,7 +3,7 @@ name: "acoes-financeiras"
 description: "Calcula preço justo, preço-teto, DY esperado e viés de bancos listados na B3 (BBAS3, ITUB4, SANB11, BBDC4, ABCB4, BRBI11, BPAC11) pela regra fixa P/VP = (ROE real − g) ÷ (10% − g). Use para valuation de banco; não para seguradoras, corretoras ou holdings."
 ---
 
-# Financeiras — valuation de bancos (v1.1)
+# Financeiras — valuation de bancos (v1.2)
 
 Microskill de cálculo. Entrega um bloco fixo de números; não escreve relatório (isso é da maestrina).
 
@@ -28,6 +28,16 @@ Microskill de cálculo. Entrega um bloco fixo de números; não escreve relatór
 
 Ke de 10% real, margem de 20%, janela de 10 anos e g máximo de 3% são constantes. Não usar o ROE "ajustado" ou "recorrente" divulgado pelo banco: a conta usa sempre o consolidado da CVM, igual para todos os bancos.
 
+## Armadilha de dividendo e status da tese (v1.2)
+Só avisos: nada aqui muda preço justo, teto ou viés.
+- **Armadilha de dividendo:** proventos pagos (dividendos + JCP, DFC) somados nos últimos 3 exercícios acima do lucro do controlador no mesmo período (payout > 100%). Três anos, e não um, para não confundir dividendo extraordinário de capital excedente com distribuição insustentável.
+- **Status da tese**, separado do viés, calculado pelo script nesta ordem:
+  - **Revisão crítica:** armadilha de dividendo, ou preço justo zerado pela regra.
+  - **Monitoramento:** ROE dos últimos 12 meses a mais de 5 p.p. da média de 10 anos; ROE médio dos últimos 3 anos a mais de 3 p.p. da média de 10 anos (v1.2; acima = preço justo pode estar conservador, ver o bull; abaixo = pode estar otimista, ver o bear); menos de 10 anos de dados.
+  - **Consolidada:** nenhum dos casos acima.
+  O viés diz se o preço está bom; o status diz se a tese está de pé.
+- Em bancos não se usa a checagem de caixa: FCO de banco mistura depósitos e crédito e não mede capacidade de pagar proventos.
+
 ## Passos
 1. **Identificar** o nome da companhia como aparece na CVM (ex.: "BCO BRASIL S.A", "ITAU UNIBANCO HOLDING", "BCO SANTANDER (BRASIL)", "BCO BRADESCO", "BCO ABC BRASIL") e quantas ações compõem o ativo negociado.
 2. **Cotação atual**: uma única fonte, com data. Registrar fonte e data.
@@ -44,12 +54,13 @@ Ke de 10% real, margem de 20%, janela de 10 anos e g máximo de 3% são constant
 
 ## Saída (formato fixo)
 ```
-[TICKER] — Financeiras v1.1 — cotação de DD/MM/AAAA (fonte)
+[TICKER] — Financeiras v1.2 — cotação de DD/MM/AAAA (fonte)
 Preço atual:  R$ X
 Preço justo:  R$ X   (bear R$ X | bull R$ X)
 Preço-teto:   R$ X
 DY esperado:  X%     (payout X%, fonte)
 Viés:         Comprar | Aguardar
+Status da tese: Consolidada | Monitoramento (motivos) | Revisão crítica (motivos)
 Memória de cálculo: ROE nominal médio X% | IPCA médio X% | ROE real X% | payout X% | g X% | P/VP justo X | VPA R$ X (data)
 Avisos: (lista do script, se houver)
 ```
@@ -63,7 +74,7 @@ Incluir a tabela anual de ROE impressa pelo script quando o usuário pedir detal
 ## Script
 ```python
 #!/usr/bin/env python3
-"""Microskill Financeiras (v1.1): preço justo e preço-teto de bancos.
+"""Microskill Financeiras (v1.2): preço justo e preço-teto de bancos.
 
 Fontes: CVM dados abertos (DFP/ITR consolidados) e IBGE (IPCA).
 Regra v1.1:
@@ -173,7 +184,7 @@ def coletar(cnpj, zpath, doc, ano):
             if cd.count('.') == 1 and d.startswith('lucro') and not ll.get(k, (0, 0.0))[1]:
                 ll[k] = (int(ano), float(r['VL_CONTA']) * escala(r))
         for r in ultima_versao([r for r in ler(zpath, f'{p}BPP_ind_{ano}.csv') if r['CNPJ_CIA'] == cnpj]):
-            if r['CD_CONTA'] == '2.03' and not pl_c.get(r['DT_FIM_EXERC']):
+            if r['CD_CONTA'].count('.') == 1 and norm(r['DS_CONTA']).startswith('patrimonio liquido') and not pl_c.get(r['DT_FIM_EXERC']):
                 pl_c[r['DT_FIM_EXERC']] = float(r['VL_CONTA']) * escala(r)
     div = {}
     for tipo in ('con', 'ind'):
@@ -338,7 +349,7 @@ def main():
         f_ant = f'{int(f_atual[:4]) - 1}{f_atual[4:]}'
         anual = ll.get((f'{ultimo}-01-01', f'{ultimo}-12-31'), (0, None))[1]
         ytd_ant = ll.get((f'{ultimo}-01-01', f_ant), (0, None))[1]
-        if None not in (anual, ytd_ant) and f'{ultimo}-12-31' in pl and f_atual in pl:
+        if None not in (anual, ytd_ant) and pl.get(f'{ultimo}-12-31') and pl.get(f_atual):
             roe_ltm = (anual - ytd_ant + lucro_ytd) / ((pl[f'{ultimo}-12-31'] + pl[f_atual]) / 2)
 
     print(f'Empresa: {nome}  (CNPJ {cnpj})')
@@ -369,6 +380,37 @@ def main():
         avisos.append(f'ROE dos últimos 12 meses ({roe_ltm:.1%}) difere em mais de 5 p.p. da média de 10 anos ({roe_nom:.1%}).')
     if roe_real <= 0:
         avisos.append('ROE real médio ≤ 0: preço justo zerado pela regra.')
+    roe_3a = sum(r for _, r in roes[-3:]) / len(roes[-3:])
+    if roe_3a - roe_nom > 0.03:
+        avisos.append(f'ROE médio dos últimos 3 anos ({roe_3a:.1%}) acima da média de 10 anos ({roe_nom:.1%}): '
+                      'o preço justo pode estar conservador se o novo patamar se mantiver; ver o cenário bull.')
+    elif roe_nom - roe_3a > 0.03:
+        avisos.append(f'ROE médio dos últimos 3 anos ({roe_3a:.1%}) abaixo da média de 10 anos ({roe_nom:.1%}): '
+                      'o preço justo pode estar otimista se o novo patamar se mantiver; ver o cenário bear.')
+    # Armadilha de dividendo (v1.2): só aviso, não muda o número
+    armadilha = []
+    anos_d = [y for y in range(ultimo - 2, ultimo + 1) if f'{y}-12-31' in divs and (f'{y}-01-01', f'{y}-12-31') in ll]
+    if len(anos_d) == 3:
+        pago_d = sum(divs[f'{y}-12-31'] for y in anos_d)
+        lucro_d = sum(ll[(f'{y}-01-01', f'{y}-12-31')][1] for y in anos_d)
+        if pago_d > max(lucro_d, 0.0):
+            armadilha.append(f'proventos pagos em {anos_d[0]}-{anos_d[-1]} (R$ {pago_d / 1e9:.2f} bi) acima do lucro do período (R$ {lucro_d / 1e9:.2f} bi), payout > 100%')
+    if armadilha:
+        avisos.append('Possível armadilha de dividendo: ' + '; '.join(armadilha) + '. O DY esperado pode não se sustentar.')
+
+    # Status da tese (v1.2): separado do viés. Crítica > Monitoramento > Consolidada
+    criticos = (['armadilha de dividendo'] if armadilha else []) + (['preço justo zerado pela regra'] if pj <= 0 else [])
+    MONITOR = [('ROE dos últimos 12 meses longe da média', roe_ltm is not None and abs(roe_ltm - roe_nom) > 0.05),
+               ('ROE dos últimos 3 anos longe da média', abs(roe_3a - roe_nom) > 0.03),
+               ('menos de 10 anos de dados', len(roes) < 10)]
+    monitorar = [m for m, c in MONITOR if c]
+    if criticos:
+        status = 'Revisão crítica (' + '; '.join(criticos) + ')'
+    elif monitorar:
+        status = 'Monitoramento (' + '; '.join(monitorar) + ')'
+    else:
+        status = 'Consolidada'
+    print(f'Status da tese: {status}')
     if avisos:
         print('\nAvisos:')
         for x in avisos:

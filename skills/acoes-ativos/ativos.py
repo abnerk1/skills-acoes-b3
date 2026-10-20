@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Microskill Ativos (v1): preço justo e preço-teto por valor dos ativos (NAV / soma das partes).
+"""Microskill Ativos (v1.1): preço justo e preço-teto por valor dos ativos (NAV / soma das partes).
 
 Fontes: CVM dados abertos (DFP/ITR) e, para marcação a mercado, o RI da empresa ou as outras microskills.
 Regra v1:
@@ -109,7 +109,7 @@ def coletar(cnpj, zpath, doc, ano):
             if cd.count('.') == 1 and d.startswith('lucro') and not ll.get(k, (0, 0.0))[1]:
                 ll[k] = (int(ano), float(r['VL_CONTA']) * escala(r))
         for r in ultima_versao([r for r in ler(zpath, f'{p}BPP_ind_{ano}.csv') if r['CNPJ_CIA'] == cnpj]):
-            if r['CD_CONTA'] == '2.03' and not pl_c.get(r['DT_FIM_EXERC']):
+            if r['CD_CONTA'].count('.') == 1 and norm(r['DS_CONTA']).startswith('patrimonio liquido') and not pl_c.get(r['DT_FIM_EXERC']):
                 pl_c[r['DT_FIM_EXERC']] = float(r['VL_CONTA']) * escala(r)
     fco, capex = {}, {}
     for arq in (f'{p}DFC_MI_con_{ano}.csv', f'{p}DFC_MD_con_{ano}.csv'):
@@ -188,7 +188,7 @@ def carregar(empresa):
         n_acoes *= 1000
         milhares = True
     return dict(cnpj=cnpj, nome=nome, pl=pl[data_pl], data_pl=data_pl, acoes=n_acoes, data_ac=data_ac,
-                divs=divs, ga=ga, milhares=milhares)
+                divs=divs, ga=ga, milhares=milhares, ll=ll)
 
 
 def main():
@@ -271,6 +271,29 @@ def main():
     print(f'Viés:          {vies}')
     if not a.ajuste and not a.participacao:
         avisos.append('Sem ajustes a mercado: NAV = PL contábil (P/VP 1). Se houver ativo relevante a custo (terras, imóveis, participações), informar --ajuste com o valor do RI.')
+    # Armadilha de dividendo (v1.1): só aviso, não muda o número
+    armadilha = []
+    anuais = sorted(f for (i, f) in d['ll'] if i[5:] == '01-01' and f[5:] == '12-31' and f in d['divs'])[-3:]
+    if len(anuais) == 3:
+        pago_d = sum(d['divs'][f] for f in anuais)
+        lucro_d = sum(d['ll'][(f[:4] + '-01-01', f)][1] for f in anuais)
+        if pago_d > max(lucro_d, 0.0):
+            armadilha.append(f'proventos pagos em {anuais[0][:4]}-{anuais[-1][:4]} (R$ {pago_d / 1e9:.2f} bi) acima do lucro do período (R$ {lucro_d / 1e9:.2f} bi), payout > 100%')
+    if armadilha:
+        avisos.append('Possível armadilha de dividendo: ' + '; '.join(armadilha) + '. O DY esperado pode não se sustentar.')
+
+    # Status da tese (v1.1): separado do viés. Crítica > Monitoramento > Consolidada
+    criticos = (['armadilha de dividendo'] if armadilha else []) + (['preço justo zerado pela regra'] if pj <= 0 else [])
+    MONITOR = [('NAV sem marcação a mercado (= PL contábil)', not a.ajuste and not a.participacao),
+               ('investida sem dados na CVM', any(x.startswith('Investida') for x in avisos))]
+    monitorar = [m for m, c in MONITOR if c]
+    if criticos:
+        status = 'Revisão crítica (' + '; '.join(criticos) + ')'
+    elif monitorar:
+        status = 'Monitoramento (' + '; '.join(monitorar) + ')'
+    else:
+        status = 'Consolidada'
+    print(f'Status da tese: {status}')
     if avisos:
         print('\nAvisos:')
         for x in avisos:
