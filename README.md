@@ -14,11 +14,11 @@ The skills, reports and command-line flags are in Portuguese because they analyz
 
 | Skill | Covers | Method | Version |
 |---|---|---|---|
-| [`analise-de-acoes-b3`](skills/analise-de-acoes-b3/SKILL.md) | Entry point (orchestrator) | Classifies the ticker, picks the micro-skill, applies the liquidity filter and writes the report | v1 |
-| [`acoes-financeiras`](skills/acoes-financeiras/SKILL.md) | Banks | P/B = (real ROE − g) ÷ (10% − g) | v1.1 |
-| [`acoes-fluxo-normalizado`](skills/acoes-fluxo-normalizado/SKILL.md) | Commodities, industrials, utilities, oil, insurance, telecom | Normalized 10-year real ROE × book value, with growth and an optional finite horizon | v1.1 |
-| [`acoes-crescimento`](skills/acoes-crescimento/SKILL.md) | Companies that reinvest their earnings (retail, agribusiness, leasing, exchanges) | Two-stage fair P/E based on ROIIC | v1 |
-| [`acoes-ativos`](skills/acoes-ativos/SKILL.md) | Holding companies, homebuilders, farmland, venture capital | NAV / sum of the parts | v1 |
+| [`analise-de-acoes-b3`](skills/analise-de-acoes-b3/SKILL.md) | Entry point (orchestrator) | Classifies the ticker, picks the micro-skill, applies the liquidity filter and writes the report | v1.1 |
+| [`acoes-financeiras`](skills/acoes-financeiras/SKILL.md) | Banks | P/B = (real ROE − g) ÷ (10% − g) | v1.2 |
+| [`acoes-fluxo-normalizado`](skills/acoes-fluxo-normalizado/SKILL.md) | Commodities, industrials, utilities, oil, insurance, telecom | Normalized 10-year real ROE × book value, with growth and an optional finite horizon | v1.2 |
+| [`acoes-crescimento`](skills/acoes-crescimento/SKILL.md) | Companies that reinvest their earnings (retail, agribusiness, leasing, exchanges) | Two-stage fair P/E based on ROIIC | v1.1 |
+| [`acoes-ativos`](skills/acoes-ativos/SKILL.md) | Holding companies, homebuilders, farmland, venture capital | NAV / sum of the parts | v1.1 |
 
 The orchestrator computes nothing itself: every number comes from a micro-skill's script.
 
@@ -26,16 +26,19 @@ The orchestrator computes nothing itself: every number comes from a micro-skill'
 
 | Skill | Covers | Method | Version |
 |---|---|---|---|
-| [`analise-de-fiis`](skills/analise-de-fiis/SKILL.md) | Any FII listed on B3 | One skill with four engines; the output is a price ceiling only, with no fair price | v1 |
+| [`analise-de-fiis`](skills/analise-de-fiis/SKILL.md) | Any FII, infrastructure debenture fund (FI-Infra) or agribusiness fund (Fiagro) listed on B3 | One skill with six engines; the output is a price ceiling only, with no fair price | v1.1 |
 
 | Engine | Covers | Price ceiling |
 |---|---|---|
-| Brick-and-mortar | offices, logistics, shopping malls, urban retail, hybrids, hotels | current distribution ÷ 8.75% (÷ 10% for corporate offices and hotels) |
+| Brick-and-mortar | offices, logistics, shopping malls, urban retail, hybrids, hotels | current distribution ÷ 8.75% (÷ 10% for corporate offices and hotels), capped at 1.05 × book value |
 | Paper | FIIs that hold real estate receivables (CRIs) | book value × 1.05 / 1.00 / 0.95, based on the credit problems in the manager's report (≤ 5%, 5–10%, > 10% of NAV) |
 | Fund of funds | FIIs that hold units of other FIIs | book value × 1.00 |
 | Transition | brick-and-mortar funds with leverage > 30% of assets or a distribution < 6% of book value; development funds | book value × 0.80 |
+| FI-Infra | funds of tax-exempt infrastructure debentures (e.g. JURO11) | book value × the paper-fund factor |
+| Fiagro (credit) | agribusiness funds holding mostly CRAs and agricultural credit (e.g. KNCA11, SNAG11) | book value × the paper-fund factor |
+| Fiagro (farmland) | agribusiness funds holding mostly farmland | same as brick-and-mortar |
 
-The current distribution is the average of the last three distribution notices × 12. On the calibration set (21 FIIs, prices as of 10/14/2026), the Buy call matched a professional reference portfolio in 21 of 21 cases.
+The current distribution is the average of the last three distribution notices × 12. On the calibration set (21 FIIs, prices as of 10/14/2026), the Buy call matched a professional reference portfolio in 21 of 21 cases. The v1.1 cap at 1.05 × book value binds on five brick-and-mortar funds in that set and changes none of the 21 calls.
 
 ## Common rules (stocks)
 
@@ -45,13 +48,17 @@ The current distribution is the average of the last three distribution notices �
 - Missing data becomes a warning and never blocks the report.
 - **Source isolation**: only CVM, IBGE, company investor relations and the share price. Third-party theses, price targets and assumptions stay out.
 - The rule is fixed. Exceptions become warnings, never case-by-case adjustments.
+- **Dividend-trap warning** (v1.1+): dividends paid over the last three years above net income for the same period (payout > 100%). For non-financials, a separate warning flags free cash flow (operating cash flow − capex) that did not cover the dividends paid.
+- **Thesis status**, separate from the Buy/Hold call: *Consolidada* (no quality warnings), *Monitoramento* (a quality warning to watch, such as recent ROE far from the 10-year average) or *Revisão crítica* (dividend trap or zero fair price). The call says whether the price is attractive; the status says whether the thesis still holds.
 
 ## Common rules (FIIs)
 
 - No fair price: the margin of safety is built into each engine's price ceiling.
 - "Buy" when the price is at or below the ceiling; below R$ 200 thousand of daily liquidity, the call becomes "Hold (liquidity)".
 - **Source isolation**: only CVM, FundosNet (the fund's own filings), the fund manager's report and the share price.
-- For paper funds, the only figure read by hand is the credit problem from the manager's report (% of NAV), with the page number recorded.
+- For paper funds, FI-Infra and credit Fiagros, the only figure read by hand is the credit problem from the manager's report (% of NAV), with the page number recorded.
+- **Dividend-trap warning**: recurring income over the last 12 months below 80% of the current distribution.
+- **Thesis status**: *Revisão crítica* for a dividend trap, a downgrade to the transition engine or credit problems above 10% of NAV; *Monitoramento* for a ceiling capped at book value, an unread manager's report, overdue Fiagro receivables ≥ 5% of NAV and similar flags; *Consolidada* otherwise.
 
 ## How to use
 
@@ -77,12 +84,13 @@ The prices above are illustrative. Use the day's price from a single source, and
 
 ## Known limitations
 
-- The method uses CVM's consolidated accounting ROE, the same for every company. It does not see adjusted recurring earnings, cycles outside the 10-year window or company projections.
+- The method uses CVM's consolidated accounting ROE, the same for every company. It does not see adjusted recurring earnings, cycles outside the 10-year window or company projections. For banks whose ROE has moved to a new level, this makes the fair price conservative or optimistic; the micro-skill flags it when the last three years sit more than 3 points away from the 10-year average.
 - The fixed ticker table in `classificar.py` reflects the project's original design. Tickers outside it fall back to the automatic rule.
 - The scripts depend on the layout of CVM's open data. A layout change can break the parsing.
 - Price and liquidity are entered by hand (default source: Status Invest).
 - FIIs: the current distribution assumes today's level holds. FundosNet sometimes does not respond; the script falls back to CVM's monthly yield or quarterly results and says so.
 - FIIs: manager reports change layout from one asset manager to the next, so the credit problem for paper funds is read by hand.
+- FI-Infra funds do not publish structured distribution notices on FundosNet, so their distributions are entered by hand; the price ceiling does not depend on them.
 
 ## Contributing
 

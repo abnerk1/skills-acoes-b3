@@ -3,7 +3,7 @@ name: "acoes-ativos"
 description: "Calcula preço justo, preço-teto, DY esperado e viés de holdings, incorporadoras, empresas de terras e de participações da B3 (ITSA4, SIMH3, EZTC3, AGRO3, G2DI33) pelo valor dos ativos (NAV / soma das partes)."
 ---
 
-# Ativos — valuation por NAV / soma das partes (v1)
+# Ativos — valuation por NAV / soma das partes (v1.1)
 
 Microskill de cálculo. Entrega um bloco fixo de números; não escreve relatório (isso é da maestrina).
 
@@ -26,6 +26,15 @@ Microskill de cálculo. Entrega um bloco fixo de números; não escreve relatór
 
 Ke de 10% real, margem de 20%, IR de 34% sobre ganhos de marcação e faixa de ±10% são constantes. Sem ajuste nem participação, NAV = PL (P/VP 1), com aviso.
 
+## Armadilha de dividendo e status da tese (v1.1)
+Só avisos: nada aqui muda preço justo, teto ou viés.
+- **Armadilha de dividendo:** proventos pagos (dividendos + JCP, DFC) somados nos últimos 3 exercícios acima do lucro do controlador no mesmo período (payout > 100%). Três anos, e não um, para não confundir dividendo extraordinário de capital excedente com distribuição insustentável.
+- **Status da tese**, separado do viés, calculado pelo script nesta ordem:
+  - **Revisão crítica:** armadilha de dividendo, ou preço justo zerado pela regra.
+  - **Monitoramento:** NAV sem marcação a mercado (= PL contábil); investida sem dados na CVM.
+  - **Consolidada:** nenhum dos casos acima.
+  O viés diz se o preço está bom; o status diz se a tese está de pé.
+
 ## Passos
 1. **Identificar** o nome da companhia como aparece na CVM (ex.: "ITAUSA", "SIMPAR", "EZ TEC", "BRASILAGRO", "G2D") e quantas ações compõem o ativo negociado.
 2. **Cotação atual**: uma única fonte, com data. Registrar fonte e data.
@@ -39,12 +48,13 @@ Ke de 10% real, margem de 20%, IR de 34% sobre ganhos de marcação e faixa de �
 
 ## Saída (formato fixo)
 ```
-[TICKER] — Ativos v1 — cotação de DD/MM/AAAA (fonte)
+[TICKER] — Ativos v1.1 — cotação de DD/MM/AAAA (fonte)
 Preço atual:  R$ X
 Preço justo:  R$ X   (bear R$ X | bull R$ X)
 Preço-teto:   R$ X
 DY esperado:  X%     (proventos pagos, média de 3 anos)
 Viés:         Comprar | Aguardar
+Status da tese: Consolidada | Monitoramento (motivos) | Revisão crítica (motivos)
 Memória de cálculo: composição do NAV impressa pelo script (PL, ajustes, participações, despesas da holding) | P/VP implícito X
 Avisos: (lista do script, se houver)
 ```
@@ -57,7 +67,7 @@ Avisos: (lista do script, se houver)
 ## Script
 ```python
 #!/usr/bin/env python3
-"""Microskill Ativos (v1): preço justo e preço-teto por valor dos ativos (NAV / soma das partes).
+"""Microskill Ativos (v1.1): preço justo e preço-teto por valor dos ativos (NAV / soma das partes).
 
 Fontes: CVM dados abertos (DFP/ITR) e, para marcação a mercado, o RI da empresa ou as outras microskills.
 Regra v1:
@@ -167,7 +177,7 @@ def coletar(cnpj, zpath, doc, ano):
             if cd.count('.') == 1 and d.startswith('lucro') and not ll.get(k, (0, 0.0))[1]:
                 ll[k] = (int(ano), float(r['VL_CONTA']) * escala(r))
         for r in ultima_versao([r for r in ler(zpath, f'{p}BPP_ind_{ano}.csv') if r['CNPJ_CIA'] == cnpj]):
-            if r['CD_CONTA'] == '2.03' and not pl_c.get(r['DT_FIM_EXERC']):
+            if r['CD_CONTA'].count('.') == 1 and norm(r['DS_CONTA']).startswith('patrimonio liquido') and not pl_c.get(r['DT_FIM_EXERC']):
                 pl_c[r['DT_FIM_EXERC']] = float(r['VL_CONTA']) * escala(r)
     fco, capex = {}, {}
     for arq in (f'{p}DFC_MI_con_{ano}.csv', f'{p}DFC_MD_con_{ano}.csv'):
@@ -246,7 +256,7 @@ def carregar(empresa):
         n_acoes *= 1000
         milhares = True
     return dict(cnpj=cnpj, nome=nome, pl=pl[data_pl], data_pl=data_pl, acoes=n_acoes, data_ac=data_ac,
-                divs=divs, ga=ga, milhares=milhares)
+                divs=divs, ga=ga, milhares=milhares, ll=ll)
 
 
 def main():
@@ -329,6 +339,29 @@ def main():
     print(f'Viés:          {vies}')
     if not a.ajuste and not a.participacao:
         avisos.append('Sem ajustes a mercado: NAV = PL contábil (P/VP 1). Se houver ativo relevante a custo (terras, imóveis, participações), informar --ajuste com o valor do RI.')
+    # Armadilha de dividendo (v1.1): só aviso, não muda o número
+    armadilha = []
+    anuais = sorted(f for (i, f) in d['ll'] if i[5:] == '01-01' and f[5:] == '12-31' and f in d['divs'])[-3:]
+    if len(anuais) == 3:
+        pago_d = sum(d['divs'][f] for f in anuais)
+        lucro_d = sum(d['ll'][(f[:4] + '-01-01', f)][1] for f in anuais)
+        if pago_d > max(lucro_d, 0.0):
+            armadilha.append(f'proventos pagos em {anuais[0][:4]}-{anuais[-1][:4]} (R$ {pago_d / 1e9:.2f} bi) acima do lucro do período (R$ {lucro_d / 1e9:.2f} bi), payout > 100%')
+    if armadilha:
+        avisos.append('Possível armadilha de dividendo: ' + '; '.join(armadilha) + '. O DY esperado pode não se sustentar.')
+
+    # Status da tese (v1.1): separado do viés. Crítica > Monitoramento > Consolidada
+    criticos = (['armadilha de dividendo'] if armadilha else []) + (['preço justo zerado pela regra'] if pj <= 0 else [])
+    MONITOR = [('NAV sem marcação a mercado (= PL contábil)', not a.ajuste and not a.participacao),
+               ('investida sem dados na CVM', any(x.startswith('Investida') for x in avisos))]
+    monitorar = [m for m, c in MONITOR if c]
+    if criticos:
+        status = 'Revisão crítica (' + '; '.join(criticos) + ')'
+    elif monitorar:
+        status = 'Monitoramento (' + '; '.join(monitorar) + ')'
+    else:
+        status = 'Consolidada'
+    print(f'Status da tese: {status}')
     if avisos:
         print('\nAvisos:')
         for x in avisos:

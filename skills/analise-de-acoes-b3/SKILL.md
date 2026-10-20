@@ -3,7 +3,7 @@ name: "analise-de-acoes-b3"
 description: "Análise de Ações da B3 (estilo analista CNPI): classifica o ticker, chama a microskill de valuation certa, aplica filtro de liquidez e entrega preço justo, preço-teto, DY, viés e relatório em formato fixo."
 ---
 
-# Análise de Ações da B3 (v1)
+# Análise de Ações da B3 (v1.1)
 
 Esta skill não calcula valor. Ela identifica a ação, escolhe a microskill, encadeia as holdings, aplica o filtro de liquidez e escreve o relatório. Toda conta vem do script de uma microskill.
 
@@ -19,6 +19,8 @@ Esta skill não calcula valor. Ela identifica a ação, escolhe a microskill, en
 - Ke 10% real; margem de segurança fixa de 20% (preço-teto = preço justo × 0,8); premissas neutras; dado faltante vira aviso e nunca bloqueia a entrega.
 - Isolamento: nunca consultar nem citar tese, preço-alvo, preço-teto ou premissa de casas de análise (research independente, bancos, corretoras). Só CVM, IBGE, RI da empresa e cotação.
 - Fora do escopo: alocação de carteira, renda fixa, rentabilidade passada, preço de entrada e recomendação personalizada.
+- **Status da tese (v1.1):** cada microskill imprime "Status da tese" (Consolidada, Monitoramento ou Revisão crítica, com os motivos). O relatório copia a linha sem mudar nada. O viés diz se o preço está bom; o status diz se a tese está de pé. Holding: vale o pior status entre a holding e as investidas avaliadas.
+- **Armadilha de dividendo (v1.1):** quando a microskill avisar "Possível armadilha de dividendo", o relatório diz isso logo abaixo da tabela, porque o DY esperado pode não se sustentar.
 
 ## Passos
 1. **Cotação e liquidez** de cada ticker, de uma única fonte com data (padrão: Status Invest — cotação e "liquidez média diária"). Registrar fonte e data.
@@ -38,7 +40,7 @@ Esta skill não calcula valor. Ela identifica a ação, escolhe a microskill, en
 
 ## Quadro-resumo (vários tickers)
 ```
-| Ativo | Método | Preço atual (R$) | Preço justo (R$) | Preço-teto (R$) | DY esperado | Viés |
+| Ativo | Método | Preço atual (R$) | Preço justo (R$) | Preço-teto (R$) | DY esperado | Viés | Status da tese |
 ```
 
 ## Relatório (formato fixo)
@@ -51,6 +53,7 @@ Análise de Ações da B3 · [DD/MM/AAAA] · Cotação R$ X ([fonte], [data]) ·
 | R$ X | R$ X | R$ X | X% | Comprar / Aguardar |
 
 Faixa do preço justo: bear R$ X · base R$ X · bull R$ X. Preço atual X% [acima/abaixo] do preço-teto.
+Status da tese: [Consolidada | Monitoramento | Revisão crítica] ([motivos da microskill]).
 
 ## O que sustenta o valor
 Duas a quatro frases, só com os números da microskill: de onde vem o valor (ROE, lucro base, ativos), quanto a empresa retém e a que retorno, e o que isso implica (P/VP ou P/L justo).
@@ -73,13 +76,14 @@ Relatório gerado por regra quantitativa fixa a partir de dados públicos. Não 
 ## Exemplo (13/10/2026)
 ```
 # ITSA4 — Itaúsa S.A.
-Análise de Ações da B3 · 13/10/2026 · Cotação R$ 15,97 (Status Invest, 13/10/2026) · Método: Ativos v1 (Itaú por Financeiras v1.1) · Large/mid cap · Liquidez R$ 526 mi/dia (adequada)
+Análise de Ações da B3 · 13/10/2026 · Cotação R$ 15,97 (Status Invest, 13/10/2026) · Método: Ativos v1.1 (Itaú por Financeiras v1.2) · Large/mid cap · Liquidez R$ 526 mi/dia (adequada)
 
 | Preço atual | Preço justo | Preço-teto | DY esperado | Viés |
 |---|---|---|---|---|
 | R$ 15,97 | R$ 11,18 | R$ 8,95 | 5,9% | Aguardar |
 
 Faixa do preço justo: bear R$ 10,05 · base R$ 11,18 · bull R$ 12,32. Preço atual 78% acima do preço-teto.
+Status da tese: Consolidada (Itaúsa e Itaú sem alertas de qualidade).
 
 ## O que sustenta o valor
 O valor da Itaúsa está no Itaú: 37,2% do banco, que a Financeiras avalia em R$ 27,90 por ação (R$ 307,5 bi), R$ 89,7 bi acima do PL do banco. O restante do portfólio entra a valor contábil, dentro do PL da holding de R$ 93,8 bi.
@@ -102,7 +106,7 @@ Relatório gerado por regra quantitativa fixa a partir de dados públicos. Não 
 ## Script
 ```python
 #!/usr/bin/env python3
-"""Análise de Ações da B3 (v1): identifica a ação na CVM e escolhe a microskill de valuation.
+"""Análise de Ações da B3 (v1.1): identifica a ação na CVM e escolhe a microskill de valuation.
 
 Uso:
   python3 classificar.py --ticker ITSA4 [--preco 15.97] [--liquidez 50] [--empresa "NOME CVM"]
